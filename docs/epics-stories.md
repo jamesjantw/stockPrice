@@ -194,23 +194,25 @@ so that I can easily manage my portfolio.
 - 設定適當欄位寬度和數值格式
 - 建立設定工作表管理參數
 
-### Story 3.2: 實作手動更新功能 ⏳ PENDING
-**狀態:** ⏳ Pending
+### Story 3.2: 實作手動更新功能 ✅ COMPLETED
+**狀態:** ✅ Completed
+**完成日期:** 2025-10-18
 
 As a user,
 I want a manual refresh button,
 so that I can update data on demand.
 
 **Acceptance Criteria:**
-3.1: 更新按鈕實作 ✅ (基本完成)
-3.2: 批量更新功能 ✅ (基本完成)
-3.3: 狀態指示
+3.1: 更新按鈕實作 ✅
+3.2: 批量更新功能 ✅
+3.3: 狀態指示 ✅
 
-**預計實作內容:**
-- 完善 updateAllPrices() 函數
-- 加入進度指示
-- 實作狀態更新通知
-- 加入取消功能
+**實作內容:**
+- 增強 updateAllPrices() 函數，加入即時進度追蹤
+- 實作成功/失敗計數器和詳細錯誤追蹤
+- 加入執行時間測量和完整報告
+- 改善用戶回饋，包含詳細的完成摘要
+- 加入錯誤詳情顯示以便除錯
 
 ### Story 3.3: 新增股票管理功能 ✅ COMPLETED
 **狀態:** ✅ Completed
