@@ -649,7 +649,7 @@ function GETSPARKLINE(stockCode, days = 30) {
 }
 
 /**
- * 更新所有股票價格的自訂選單函數
+ * 更新所有股票價格的自訂選單函數（增強版）
  */
 function updateAllPrices() {
   try {
@@ -662,12 +662,24 @@ function updateAllPrices() {
       return;
     }
 
-    // 顯示進度
-    SpreadsheetApp.getUi().alert(`開始更新 ${stocks.length} 支股票的價格...`);
+    // 顯示開始訊息
+    const startTime = new Date();
+    SpreadsheetApp.getUi().alert(`開始更新 ${stocks.length} 支股票的價格...\n\n預計需要約 ${Math.ceil(stocks.length * 0.3)} 秒`);
+
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
 
     // 更新價格和指標（使用同步方式，因為 Apps Script 限制）
-    for (const stock of stocks) {
+    for (let i = 0; i < stocks.length; i++) {
+      const stock = stocks[i];
+
       try {
+        // 顯示進度（每5支股票顯示一次）
+        if ((i + 1) % 5 === 0 || i === 0) {
+          SpreadsheetApp.getUi().alert(`正在更新股票 ${i + 1}/${stocks.length}...\n目前成功: ${successCount}, 失敗: ${errorCount}`);
+        }
+
         const priceData = stockPriceService.getPrice(stock.code);
 
         if (priceData !== null) {
@@ -698,6 +710,8 @@ function updateAllPrices() {
           sheet.getRange(stock.rowIndex, 9).setValue(
             Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")
           );
+
+          successCount++;
         } else {
           // 設定為無資料
           sheet.getRange(stock.rowIndex, 4).setValue("無資料");
@@ -708,6 +722,9 @@ function updateAllPrices() {
           sheet.getRange(stock.rowIndex, 9).setValue(
             Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")
           );
+
+          errorCount++;
+          errors.push(`${stock.code}: 無資料`);
         }
 
         // API 呼叫間隔
@@ -720,13 +737,33 @@ function updateAllPrices() {
         sheet.getRange(stock.rowIndex, 6).setValue("錯誤");
         sheet.getRange(stock.rowIndex, 7).setValue("錯誤");
         sheet.getRange(stock.rowIndex, 8).setValue("錯誤");
+
+        errorCount++;
+        errors.push(`${stock.code}: ${e.toString()}`);
       }
     }
 
     // 重新整理試算表
     sheetsService.refreshSheet(sheet);
 
-    SpreadsheetApp.getUi().alert("價格更新完成！");
+    // 計算耗時
+    const endTime = new Date();
+    const duration = Math.round((endTime - startTime) / 1000);
+
+    // 顯示完成訊息
+    let message = `價格更新完成！\n\n`;
+    message += `總共股票: ${stocks.length}\n`;
+    message += `成功更新: ${successCount}\n`;
+    message += `更新失敗: ${errorCount}\n`;
+    message += `總耗時: ${duration} 秒\n\n`;
+
+    if (errors.length > 0 && errors.length <= 5) {
+      message += `失敗詳情:\n${errors.join('\n')}`;
+    } else if (errors.length > 5) {
+      message += `失敗詳情請查看日誌 (共 ${errors.length} 個錯誤)`;
+    }
+
+    SpreadsheetApp.getUi().alert(message);
 
   } catch (e) {
     Logger.log("updateAllPrices 錯誤: " + e);
