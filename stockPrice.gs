@@ -75,14 +75,46 @@ class StockPriceService {
     if (cached !== null) return cached;
 
     try {
-      const today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
-      const url = `${this.twseBaseUrl}/exchangeReport/STOCK_DAY?response=json&date=${today}&stockNo=${stockCode}`;
+      // 使用最近的交易日，因為今天可能還沒收盤
+      const today = new Date();
+      let targetDate = new Date(today);
 
-      const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-      const json = JSON.parse(response.getContentText());
+      // 如果是週末，往前推到週五
+      if (today.getDay() === 0) { // 星期日
+        targetDate.setDate(today.getDate() - 2);
+      } else if (today.getDay() === 6) { // 星期六
+        targetDate.setDate(today.getDate() - 1);
+      }
+
+      const dateStr = Utilities.formatDate(targetDate, "GMT+8", "yyyyMMdd");
+      const url = `${this.twseBaseUrl}/exchangeReport/STOCK_DAY?response=json&date=${dateStr}&stockNo=${stockCode}`;
+
+      Logger.log("TWSE URL: " + url);
+
+      const response = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      const responseCode = response.getResponseCode();
+      Logger.log("TWSE Response Code: " + responseCode);
+
+      if (responseCode !== 200) {
+        Logger.log("TWSE API 回應錯誤: " + responseCode);
+        return null;
+      }
+
+      const jsonText = response.getContentText();
+      Logger.log("TWSE Raw Response: " + jsonText.substring(0, 200));
+
+      const json = JSON.parse(jsonText);
 
       if (json && json.data && json.data.length > 0) {
         const lastRow = json.data[json.data.length - 1];
+        Logger.log("TWSE Last Row: " + JSON.stringify(lastRow));
+
         const priceData = {
           currentPrice: parseFloat(lastRow[6].replace(/,/g, "")), // 收盤價
           previousClose: parseFloat(lastRow[7].replace(/,/g, "")), // 昨收價
@@ -94,12 +126,17 @@ class StockPriceService {
         };
 
         // 驗證資料完整性
-        if (isNaN(priceData.currentPrice)) return null;
+        if (isNaN(priceData.currentPrice) || priceData.currentPrice <= 0) {
+          Logger.log("TWSE 價格資料無效: " + priceData.currentPrice);
+          return null;
+        }
 
+        Logger.log("TWSE 成功取得資料: " + JSON.stringify(priceData));
         cacheManager.set(cacheKey, priceData);
         return priceData;
       }
 
+      Logger.log("TWSE 無資料或資料格式錯誤");
       return null;
     } catch (e) {
       Logger.log("TWSE 錯誤: " + e);
@@ -219,33 +256,56 @@ class StockPriceService {
     if (cached !== null) return cached;
 
     try {
-      const url = `${this.yahooBaseUrl}/v8/finance/chart/${stockCode}`;
+      // 使用 Yahoo Finance 的 quote API，更穩定
+      const url = `${this.yahooBaseUrl}/v10/finance/quoteSummary/${stockCode}?modules=price`;
 
-      const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-      const json = JSON.parse(response.getContentText());
+      Logger.log("Yahoo Finance URL: " + url);
 
-      if (json && json.chart && json.chart.result && json.chart.result[0]) {
-        const result = json.chart.result[0];
-        if (result.meta) {
-          const meta = result.meta;
-          const priceData = {
-            currentPrice: meta.regularMarketPrice || null,
-            previousClose: meta.previousClose || null,
-            openPrice: meta.regularMarketOpen || null,
-            highPrice: meta.regularMarketDayHigh || null,
-            lowPrice: meta.regularMarketDayLow || null,
-            volume: meta.regularMarketVolume || null,
-            change: meta.regularMarketChange || null
-          };
-
-          // 驗證資料完整性
-          if (isNaN(priceData.currentPrice)) return null;
-
-          cacheManager.set(cacheKey, priceData);
-          return priceData;
+      const response = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
+      });
+
+      const responseCode = response.getResponseCode();
+      Logger.log("Yahoo Response Code: " + responseCode);
+
+      if (responseCode !== 200) {
+        Logger.log("Yahoo API 回應錯誤: " + responseCode);
+        return null;
       }
 
+      const jsonText = response.getContentText();
+      Logger.log("Yahoo Raw Response: " + jsonText.substring(0, 200));
+
+      const json = JSON.parse(jsonText);
+
+      if (json && json.quoteSummary && json.quoteSummary.result && json.quoteSummary.result[0]) {
+        const priceData = json.quoteSummary.result[0].price;
+
+        const result = {
+          currentPrice: priceData.regularMarketPrice ? priceData.regularMarketPrice.raw : null,
+          previousClose: priceData.regularMarketPreviousClose ? priceData.regularMarketPreviousClose.raw : null,
+          openPrice: priceData.regularMarketOpen ? priceData.regularMarketOpen.raw : null,
+          highPrice: priceData.regularMarketDayHigh ? priceData.regularMarketDayHigh.raw : null,
+          lowPrice: priceData.regularMarketDayLow ? priceData.regularMarketDayLow.raw : null,
+          volume: priceData.regularMarketVolume ? priceData.regularMarketVolume.raw : null,
+          change: priceData.regularMarketChange ? priceData.regularMarketChange.raw : null
+        };
+
+        // 驗證資料完整性
+        if (isNaN(result.currentPrice) || result.currentPrice <= 0) {
+          Logger.log("Yahoo 價格資料無效: " + result.currentPrice);
+          return null;
+        }
+
+        Logger.log("Yahoo 成功取得資料: " + JSON.stringify(result));
+        cacheManager.set(cacheKey, result);
+        return result;
+      }
+
+      Logger.log("Yahoo 無資料或資料格式錯誤");
       return null;
     } catch (e) {
       Logger.log("Yahoo Finance 錯誤: " + e);
