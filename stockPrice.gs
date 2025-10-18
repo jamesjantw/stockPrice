@@ -65,9 +65,9 @@ class StockPriceService {
   }
 
   /**
-   * 取得 TWSE 股價
+   * 取得 TWSE 股價和完整指標
    * @param {string} stockCode - 股票代號
-   * @returns {Promise<number|null>} 股價或 null
+   * @returns {Promise<Object|null>} 價格指標物件或 null
    */
   async getTWSEPrice(stockCode) {
     const cacheKey = `twse_${stockCode}`;
@@ -83,9 +83,21 @@ class StockPriceService {
 
       if (json && json.data && json.data.length > 0) {
         const lastRow = json.data[json.data.length - 1];
-        const closePrice = parseFloat(lastRow[6].replace(/,/g, ""));
-        cacheManager.set(cacheKey, closePrice);
-        return closePrice;
+        const priceData = {
+          currentPrice: parseFloat(lastRow[6].replace(/,/g, "")), // 收盤價
+          previousClose: parseFloat(lastRow[7].replace(/,/g, "")), // 昨收價
+          openPrice: parseFloat(lastRow[5].replace(/,/g, "")), // 開盤價
+          highPrice: parseFloat(lastRow[8].replace(/,/g, "")), // 最高價
+          lowPrice: parseFloat(lastRow[9].replace(/,/g, "")), // 最低價
+          volume: parseInt(lastRow[1].replace(/,/g, "")), // 成交量
+          change: parseFloat(lastRow[7].replace(/,/g, "")) - parseFloat(lastRow[6].replace(/,/g, "")) // 漲跌價
+        };
+
+        // 驗證資料完整性
+        if (isNaN(priceData.currentPrice)) return null;
+
+        cacheManager.set(cacheKey, priceData);
+        return priceData;
       }
 
       return null;
@@ -155,9 +167,9 @@ class StockPriceService {
   }
 
   /**
-   * 取得 TPEX 股價
+   * 取得 TPEX 股價和完整指標
    * @param {string} stockCode - 股票代號
-   * @returns {Promise<number|null>} 股價或 null
+   * @returns {Promise<Object|null>} 價格指標物件或 null
    */
   async getTPEXPrice(stockCode) {
     const cacheKey = `tpex_${stockCode}`;
@@ -172,9 +184,21 @@ class StockPriceService {
 
       if (json && json.data && json.data.length > 0) {
         const lastRow = json.data[json.data.length - 1];
-        const closePrice = parseFloat(lastRow[2].replace(/,/g, ""));
-        cacheManager.set(cacheKey, closePrice);
-        return closePrice;
+        const priceData = {
+          currentPrice: parseFloat(lastRow[2].replace(/,/g, "")), // 收盤價
+          previousClose: parseFloat(lastRow[8].replace(/,/g, "")), // 昨收價
+          openPrice: parseFloat(lastRow[4].replace(/,/g, "")), // 開盤價
+          highPrice: parseFloat(lastRow[5].replace(/,/g, "")), // 最高價
+          lowPrice: parseFloat(lastRow[6].replace(/,/g, "")), // 最低價
+          volume: parseInt(lastRow[3].replace(/,/g, "")), // 成交量
+          change: parseFloat(lastRow[2].replace(/,/g, "")) - parseFloat(lastRow[8].replace(/,/g, "")) // 漲跌價
+        };
+
+        // 驗證資料完整性
+        if (isNaN(priceData.currentPrice)) return null;
+
+        cacheManager.set(cacheKey, priceData);
+        return priceData;
       }
 
       return null;
@@ -185,9 +209,9 @@ class StockPriceService {
   }
 
   /**
-   * 取得美股價格
+   * 取得美股價格和完整指標
    * @param {string} stockCode - 股票代號
-   * @returns {Promise<number|null>} 股價或 null
+   * @returns {Promise<Object|null>} 價格指標物件或 null
    */
   async getUSPrice(stockCode) {
     const cacheKey = `us_${stockCode}`;
@@ -202,10 +226,23 @@ class StockPriceService {
 
       if (json && json.chart && json.chart.result && json.chart.result[0]) {
         const result = json.chart.result[0];
-        if (result.meta && result.meta.regularMarketPrice) {
-          const price = result.meta.regularMarketPrice;
-          cacheManager.set(cacheKey, price);
-          return price;
+        if (result.meta) {
+          const meta = result.meta;
+          const priceData = {
+            currentPrice: meta.regularMarketPrice || null,
+            previousClose: meta.previousClose || null,
+            openPrice: meta.regularMarketOpen || null,
+            highPrice: meta.regularMarketDayHigh || null,
+            lowPrice: meta.regularMarketDayLow || null,
+            volume: meta.regularMarketVolume || null,
+            change: meta.regularMarketChange || null
+          };
+
+          // 驗證資料完整性
+          if (isNaN(priceData.currentPrice)) return null;
+
+          cacheManager.set(cacheKey, priceData);
+          return priceData;
         }
       }
 
@@ -258,9 +295,9 @@ class StockPriceService {
   }
 
   /**
-   * 根據股票代號判斷市場類型並取得價格
+   * 根據股票代號判斷市場類型並取得價格和完整指標
    * @param {string} stockCode - 股票代號
-   * @returns {Promise<number|null>} 股價或 null
+   * @returns {Promise<Object|null>} 價格指標物件或 null
    */
   async getPrice(stockCode) {
     if (!stockCode || typeof stockCode !== 'string') return null;
@@ -277,6 +314,16 @@ class StockPriceService {
       // 假設是美股代號
       return await this.getUSPrice(stockCode);
     }
+  }
+
+  /**
+   * 取得完整價格指標（回溯相容性）
+   * @param {string} stockCode - 股票代號
+   * @returns {Promise<number|null>} 股價或 null（僅為了回溯相容）
+   */
+  async getPriceOnly(stockCode) {
+    const priceData = await this.getPrice(stockCode);
+    return priceData ? priceData.currentPrice : null;
   }
 
   /**
@@ -368,7 +415,7 @@ class GoogleSheetsService {
   }
 
   /**
-   * 更新股票價格
+   * 更新股票價格和完整指標
    * @param {Sheet} sheet - 工作表
    * @param {Array} stocks - 股票清單
    */
@@ -378,16 +425,41 @@ class GoogleSheetsService {
 
     for (const stock of stocks) {
       try {
-        const price = await stockPriceService.getPrice(stock.code);
+        const priceData = await stockPriceService.getPrice(stock.code);
 
-        if (price !== null) {
-          // 更新價格 (D 欄，index 3)
-          sheet.getRange(stock.rowIndex, 4).setValue(price);
+        if (priceData !== null) {
+          // 更新即時股價 (D 欄，index 4)
+          sheet.getRange(stock.rowIndex, 4).setValue(priceData.currentPrice);
+
+          // 更新昨日收盤價 (E 欄，index 5)
+          if (priceData.previousClose !== null) {
+            sheet.getRange(stock.rowIndex, 5).setValue(priceData.previousClose);
+          }
+
+          // 更新開盤價 (F 欄，index 6)
+          if (priceData.openPrice !== null) {
+            sheet.getRange(stock.rowIndex, 6).setValue(priceData.openPrice);
+          }
+
+          // 更新最高價 (G 欄，index 7)
+          if (priceData.highPrice !== null) {
+            sheet.getRange(stock.rowIndex, 7).setValue(priceData.highPrice);
+          }
+
+          // 更新最低價 (H 欄，index 8)
+          if (priceData.lowPrice !== null) {
+            sheet.getRange(stock.rowIndex, 8).setValue(priceData.lowPrice);
+          }
+
           // 更新時間戳 (I 欄，index 9)
           sheet.getRange(stock.rowIndex, 9).setValue(timestamp);
         } else {
           // 設定為無資料
           sheet.getRange(stock.rowIndex, 4).setValue("無資料");
+          sheet.getRange(stock.rowIndex, 5).setValue("無資料");
+          sheet.getRange(stock.rowIndex, 6).setValue("無資料");
+          sheet.getRange(stock.rowIndex, 7).setValue("無資料");
+          sheet.getRange(stock.rowIndex, 8).setValue("無資料");
           sheet.getRange(stock.rowIndex, 9).setValue(timestamp);
         }
 
@@ -397,6 +469,10 @@ class GoogleSheetsService {
       } catch (e) {
         Logger.log(`更新股票 ${stock.code} 時發生錯誤: ${e}`);
         sheet.getRange(stock.rowIndex, 4).setValue("錯誤");
+        sheet.getRange(stock.rowIndex, 5).setValue("錯誤");
+        sheet.getRange(stock.rowIndex, 6).setValue("錯誤");
+        sheet.getRange(stock.rowIndex, 7).setValue("錯誤");
+        sheet.getRange(stock.rowIndex, 8).setValue("錯誤");
       }
     }
   }
@@ -457,6 +533,38 @@ class DataProcessingService {
     }
 
     return price.toFixed(2);
+  }
+
+  /**
+   * 格式化價格指標物件
+   * @param {Object} priceData - 價格指標物件
+   * @returns {Object} 格式化的價格指標
+   */
+  formatPriceIndicators(priceData) {
+    if (!priceData || typeof priceData !== 'object') {
+      return {
+        currentPrice: "無資料",
+        previousClose: "無資料",
+        openPrice: "無資料",
+        highPrice: "無資料",
+        lowPrice: "無資料",
+        change: "無資料",
+        changePercent: "N/A"
+      };
+    }
+
+    const formatted = {
+      currentPrice: this.formatPrice(priceData.currentPrice),
+      previousClose: this.formatPrice(priceData.previousClose),
+      openPrice: this.formatPrice(priceData.openPrice),
+      highPrice: this.formatPrice(priceData.highPrice),
+      lowPrice: this.formatPrice(priceData.lowPrice),
+      change: priceData.change !== null && !isNaN(priceData.change) ?
+        (priceData.change >= 0 ? "+" : "") + priceData.change.toFixed(2) : "無資料",
+      changePercent: this.calculateChangePercent(priceData.currentPrice, priceData.previousClose)
+    };
+
+    return formatted;
   }
 
   /**
@@ -557,18 +665,46 @@ function updateAllPrices() {
     // 顯示進度
     SpreadsheetApp.getUi().alert(`開始更新 ${stocks.length} 支股票的價格...`);
 
-    // 更新價格（使用同步方式，因為 Apps Script 限制）
+    // 更新價格和指標（使用同步方式，因為 Apps Script 限制）
     for (const stock of stocks) {
       try {
-        const price = stockPriceService.getPrice(stock.code);
+        const priceData = stockPriceService.getPrice(stock.code);
 
-        if (price !== null) {
-          sheet.getRange(stock.rowIndex, 4).setValue(price);
+        if (priceData !== null) {
+          // 更新即時股價 (D 欄)
+          sheet.getRange(stock.rowIndex, 4).setValue(priceData.currentPrice);
+
+          // 更新昨日收盤價 (E 欄)
+          if (priceData.previousClose !== null) {
+            sheet.getRange(stock.rowIndex, 5).setValue(priceData.previousClose);
+          }
+
+          // 更新開盤價 (F 欄)
+          if (priceData.openPrice !== null) {
+            sheet.getRange(stock.rowIndex, 6).setValue(priceData.openPrice);
+          }
+
+          // 更新最高價 (G 欄)
+          if (priceData.highPrice !== null) {
+            sheet.getRange(stock.rowIndex, 7).setValue(priceData.highPrice);
+          }
+
+          // 更新最低價 (H 欄)
+          if (priceData.lowPrice !== null) {
+            sheet.getRange(stock.rowIndex, 8).setValue(priceData.lowPrice);
+          }
+
+          // 更新時間戳 (I 欄)
           sheet.getRange(stock.rowIndex, 9).setValue(
             Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")
           );
         } else {
+          // 設定為無資料
           sheet.getRange(stock.rowIndex, 4).setValue("無資料");
+          sheet.getRange(stock.rowIndex, 5).setValue("無資料");
+          sheet.getRange(stock.rowIndex, 6).setValue("無資料");
+          sheet.getRange(stock.rowIndex, 7).setValue("無資料");
+          sheet.getRange(stock.rowIndex, 8).setValue("無資料");
           sheet.getRange(stock.rowIndex, 9).setValue(
             Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")
           );
@@ -580,6 +716,10 @@ function updateAllPrices() {
       } catch (e) {
         Logger.log(`更新股票 ${stock.code} 時發生錯誤: ${e}`);
         sheet.getRange(stock.rowIndex, 4).setValue("錯誤");
+        sheet.getRange(stock.rowIndex, 5).setValue("錯誤");
+        sheet.getRange(stock.rowIndex, 6).setValue("錯誤");
+        sheet.getRange(stock.rowIndex, 7).setValue("錯誤");
+        sheet.getRange(stock.rowIndex, 8).setValue("錯誤");
       }
     }
 
@@ -637,6 +777,37 @@ function testBasicFunctionality() {
   Logger.log("Apple 價格: " + usPrice);
 
   Logger.log("基本功能測試完成");
+}
+
+/**
+ * 測試完整價格指標功能
+ */
+function testPriceIndicators() {
+  Logger.log("測試完整價格指標功能...");
+
+  try {
+    // 測試台股完整指標
+    const twseData = stockPriceService.getPrice("2330");
+    Logger.log("台積電完整資料: " + JSON.stringify(twseData));
+
+    // 測試上櫃完整指標
+    const tpexData = stockPriceService.getPrice("6104");
+    Logger.log("創惟完整資料: " + JSON.stringify(tpexData));
+
+    // 測試美股完整指標
+    const usData = stockPriceService.getPrice("AAPL");
+    Logger.log("Apple 完整資料: " + JSON.stringify(usData));
+
+    // 測試資料格式化
+    if (twseData) {
+      const formatted = dataProcessingService.formatPriceIndicators(twseData);
+      Logger.log("台積電格式化資料: " + JSON.stringify(formatted));
+    }
+
+    Logger.log("完整價格指標測試完成");
+  } catch (e) {
+    Logger.log("價格指標測試錯誤: " + e);
+  }
 }
 
 /**
