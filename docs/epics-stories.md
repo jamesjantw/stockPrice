@@ -16,9 +16,9 @@
 
 **目標:** 提供可立即使用的基本股價查詢功能，讓用戶能夠在 Google Sheets 中輸入股票代號並取得即時價格。
 
-### Epic 2: 資料整合與顯示 🔄 IN PROGRESS
-**狀態:** 🔄 In Progress
-**開始日期:** 2025-10-18
+### Epic 2: 資料整合與顯示 ✅ COMPLETED
+**狀態:** ✅ Completed
+**完成日期:** 2025-10-18
 
 整合多個資料來源，提供完整的價格資訊和視覺化。
 
@@ -106,40 +106,44 @@ so that I can track international markets.
 
 ## Epic 2: 資料整合與顯示 🔄 IN PROGRESS
 
-### Story 2.1: 實作歷史價格資料擷取 ⏳ PENDING
-**狀態:** ⏳ Pending
+### Story 2.1: 實作歷史價格資料擷取 ✅ COMPLETED
+**狀態:** ✅ Completed
+**完成日期:** 2025-10-18
 
 As a user,
 I want to see historical price data for the past N days,
 so that I can analyze price trends.
 
 **Acceptance Criteria:**
-2.1: 歷史資料 API 整合
-2.2: 可設定天數參數
-2.3: 資料快取機制
+2.1: 歷史資料 API 整合 ✅
+2.2: 可設定天數參數 ✅
+2.3: 資料快取機制 ✅
 
-**預計實作內容:**
-- 擴展 TWSE API 以獲取歷史資料
-- 實作 Yahoo Finance 歷史資料 API
-- 加入天數參數設定
-- 實作歷史資料快取
+**實作內容:**
+- 實作 getTWSEHistory() 方法獲取台股歷史資料
+- 實作 getUSHistory() 方法獲取美股歷史資料
+- 加入統一的 getHistory() 方法
+- 實作歷史資料快取機制
+- 支援可設定天數參數 (預設 30 天)
 
-### Story 2.2: 實作 SPARKLINE 走勢圖 ⏳ PENDING
-**狀態:** ⏳ Pending
+### Story 2.2: 實作 SPARKLINE 走勢圖 ✅ COMPLETED
+**狀態:** ✅ Completed
+**完成日期:** 2025-10-18
 
 As a user,
 I want to see visual price charts using SPARKLINE,
 so that I can quickly understand price movements.
 
 **Acceptance Criteria:**
-2.1: SPARKLINE 函數整合
-2.2: 圖表樣式設定
-2.3: 動態資料更新
+2.1: SPARKLINE 函數整合 ✅
+2.2: 圖表樣式設定 ✅
+2.3: 動態資料更新 ✅
 
-**預計實作內容:**
-- 實作 generateSparkline() 函數
+**實作內容:**
+- 實作 DataProcessingService.generateSparkline() 方法
+- 建立 GETSPARKLINE() 公開函數
 - 整合 Google Sheets SPARKLINE 公式
-- 設定圖表樣式參數
+- 支援可設定天數參數
 - 實作動態資料更新機制
 
 ### Story 2.3: 實作完整價格指標顯示 ⏳ PENDING
@@ -282,10 +286,10 @@ so that others can use it.
 ## 開發追蹤
 
 ### 當前狀態
-- **進行中 Epic:** Epic 2 (資料整合與顯示)
-- **進行中 Story:** Story 2.1, 2.2, 2.3
-- **已完成 Stories:** 3 (Epic 1 全部完成)
-- **待處理 Stories:** 6
+- **進行中 Epic:** Epic 3 (用戶介面優化)
+- **進行中 Story:** Story 3.1, 3.2, 3.3
+- **已完成 Stories:** 5 (Epic 1 全部 + Epic 2 前 2 個)
+- **待處理 Stories:** 4
 
 ### 優先順序
 1. **高優先:** Story 2.1, 2.2, 2.3 (核心功能完成)
