@@ -755,7 +755,178 @@ function onOpen() {
   ui.createMenu('股價工具')
     .addItem('更新所有價格', 'updateAllPrices')
     .addItem('清除快取', 'clearCache')
+    .addSeparator()
+    .addItem('初始化試算表格式', 'initializeSheetFormat')
+    .addItem('新增股票', 'addNewStock')
+    .addItem('刪除股票', 'removeStock')
     .addToUi();
+}
+
+/**
+ * 初始化試算表格式和設定
+ */
+function initializeSheetFormat() {
+  try {
+    const sheet = SpreadsheetApp.getActiveSheet();
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+    // 設定工作表名稱
+    sheet.setName('股票追蹤');
+
+    // 清除現有內容
+    sheet.clear();
+
+    // 設定欄位標題
+    const headers = [
+      ['股票代號', '股票名稱', '走勢圖', '即時股價', '昨日收盤', '開盤價', '最高價', '最低價', '更新時間']
+    ];
+    sheet.getRange(1, 1, 1, 9).setValues(headers);
+
+    // 設定標題列格式
+    const headerRange = sheet.getRange(1, 1, 1, 9);
+    headerRange.setFontWeight('bold');
+    headerRange.setBackground('#f0f0f0');
+    headerRange.setBorder(true, true, true, true, true, true);
+
+    // 設定欄位寬度
+    sheet.setColumnWidth(1, 100); // 股票代號
+    sheet.setColumnWidth(2, 120); // 股票名稱
+    sheet.setColumnWidth(3, 200); // 走勢圖
+    sheet.setColumnWidth(4, 100); // 即時股價
+    sheet.setColumnWidth(5, 100); // 昨日收盤
+    sheet.setColumnWidth(6, 100); // 開盤價
+    sheet.setColumnWidth(7, 100); // 最高價
+    sheet.setColumnWidth(8, 100); // 最低價
+    sheet.setColumnWidth(9, 150); // 更新時間
+
+    // 設定資料驗證規則
+    setupDataValidation(sheet);
+
+    // 設定條件格式化
+    setupConditionalFormatting(sheet);
+
+    // 新增範例資料
+    addSampleData(sheet);
+
+    // 建立設定工作表
+    createSettingsSheet(spreadsheet);
+
+    SpreadsheetApp.getUi().alert('試算表格式初始化完成！');
+
+  } catch (e) {
+    Logger.log('初始化格式錯誤: ' + e);
+    SpreadsheetApp.getUi().alert('初始化過程中發生錯誤：' + e.toString());
+  }
+}
+
+/**
+ * 設定資料驗證規則
+ */
+function setupDataValidation(sheet) {
+  // 股票代號欄位驗證 (第1列)
+  const stockCodeRange = sheet.getRange(2, 1, 1000, 1); // A2:A1001
+
+  // 自訂公式驗證：檢查是否為有效的股票代號格式
+  const stockCodeValidation = SpreadsheetApp.newDataValidation()
+    .requireFormulaSatisfied('=OR(ISBLANK(A2), REGEXMATCH(A2, "^[0-9A-Z]{4,6}$"))')
+    .setAllowInvalid(false)
+    .setHelpText('請輸入有效的股票代號：\n- 台股上市：4碼數字 (如：2330)\n- 台股上櫃：4-6碼字母數字組合\n- 美股：標準代號 (如：AAPL)')
+    .build();
+
+  stockCodeRange.setDataValidation(stockCodeValidation);
+}
+
+/**
+ * 設定條件格式化
+ */
+function setupConditionalFormatting(sheet) {
+  // 價格變動顏色提示
+  const priceRange = sheet.getRange(2, 4, 1000, 5); // D2:H1001 (價格欄位)
+
+  // 漲價顯示綠色
+  const greenRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=AND(NOT(ISBLANK($D2)), NOT(ISBLANK($E2)), $D2 > $E2)')
+    .setBackground('#d9ead3') // 淺綠色
+    .setRanges([priceRange])
+    .build();
+
+  // 跌價顯示紅色
+  const redRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=AND(NOT(ISBLANK($D2)), NOT(ISBLANK($E2)), $D2 < $E2)')
+    .setBackground('#f4cccc') // 淺紅色
+    .setRanges([priceRange])
+    .build();
+
+  // 套用條件格式化規則
+  sheet.setConditionalFormatRules([greenRule, redRule]);
+
+  // 設定數值格式
+  const numberFormatRanges = [
+    sheet.getRange(2, 4, 1000, 5), // 價格欄位
+  ];
+
+  numberFormatRanges.forEach(range => {
+    range.setNumberFormat('#,##0.00');
+  });
+
+  // 設定時間格式
+  const timeRange = sheet.getRange(2, 9, 1000, 1); // 更新時間欄位
+  timeRange.setNumberFormat('yyyy-mm-dd hh:mm:ss');
+}
+
+/**
+ * 新增範例資料
+ */
+function addSampleData(sheet) {
+  const sampleData = [
+    ['2330', '台積電', '=GETSPARKLINE("2330")'],
+    ['2454', '聯發科', '=GETSPARKLINE("2454")'],
+    ['2317', '鴻海', '=GETSPARKLINE("2317")'],
+    ['AAPL', 'Apple Inc.', '=GETSPARKLINE("AAPL")'],
+    ['TSLA', 'Tesla', '=GETSPARKLINE("TSLA")']
+  ];
+
+  if (sampleData.length > 0) {
+    sheet.getRange(2, 1, sampleData.length, 3).setValues(sampleData);
+  }
+}
+
+/**
+ * 建立設定工作表
+ */
+function createSettingsSheet(spreadsheet) {
+  let settingsSheet = spreadsheet.getSheetByName('設定');
+
+  if (!settingsSheet) {
+    settingsSheet = spreadsheet.insertSheet('設定');
+  } else {
+    settingsSheet.clear();
+  }
+
+  // 設定標題
+  const settingsHeaders = [['設定項目', '設定值', '說明']];
+  settingsSheet.getRange(1, 1, 1, 3).setValues(settingsHeaders);
+
+  // 設定資料
+  const settingsData = [
+    ['走勢圖天數', '30', '歷史走勢圖顯示的天數 (7-365)'],
+    ['快取時間', '5', '資料快取分鐘數'],
+    ['自動更新間隔', '0', '自動更新間隔分鐘數 (0=關閉)'],
+    ['API逾時時間', '10', 'API呼叫逾時秒數'],
+    ['重試次數', '3', 'API失敗重試次數']
+  ];
+
+  settingsSheet.getRange(2, 1, settingsData.length, 3).setValues(settingsData);
+
+  // 設定格式
+  const headerRange = settingsSheet.getRange(1, 1, 1, 3);
+  headerRange.setFontWeight('bold');
+  headerRange.setBackground('#e8f4fd');
+
+  // 設定欄位寬度
+  settingsSheet.setColumnWidth(1, 150);
+  settingsSheet.setColumnWidth(2, 100);
+  settingsSheet.setColumnWidth(3, 300);
 }
 
 /**
@@ -932,5 +1103,135 @@ function testErrorHandling() {
 
   } catch (e) {
     Logger.log("錯誤處理測試錯誤: " + e);
+  }
+}
+
+/**
+ * 新增股票功能
+ */
+function addNewStock() {
+  try {
+    const ui = SpreadsheetApp.getUi();
+    const stockCode = ui.prompt('新增股票', '請輸入股票代號：', ui.ButtonSet.OK_CANCEL);
+
+    if (stockCode.getSelectedButton() !== ui.Button.OK) return;
+
+    const code = stockCode.getResponseText().trim();
+    if (!code) {
+      ui.alert('錯誤', '股票代號不能為空', ui.ButtonSet.OK);
+      return;
+    }
+
+    // 驗證股票代號格式
+    if (!/^[0-9A-Z]{4,6}$/.test(code)) {
+      ui.alert('錯誤', '無效的股票代號格式', ui.ButtonSet.OK);
+      return;
+    }
+
+    const sheet = SpreadsheetApp.getActiveSheet();
+
+    // 找到第一個空行
+    const data = sheet.getDataRange().getValues();
+    let emptyRow = -1;
+
+    for (let i = 1; i < data.length; i++) { // 從第2行開始 (跳過標題)
+      if (!data[i][0] && !data[i][1]) { // 股票代號和名稱都為空
+        emptyRow = i + 1; // 1-indexed
+        break;
+      }
+    }
+
+    if (emptyRow === -1) {
+      // 如果沒有空行，新增到最後
+      emptyRow = data.length + 1;
+    }
+
+    // 設定股票代號
+    sheet.getRange(emptyRow, 1).setValue(code);
+
+    // 嘗試自動取得股票名稱（如果有快取資料）
+    try {
+      const priceData = stockPriceService.getPrice(code);
+      if (priceData && priceData.currentPrice) {
+        // 對於台股，我們可以根據代號推測市場類型
+        let stockName = '';
+        if (code.length === 4 && /^\d+$/.test(code)) {
+          stockName = '台股上市';
+        } else if (/^[0-9A-Z]{4,6}$/.test(code)) {
+          stockName = '台股上櫃';
+        } else {
+          stockName = '美股';
+        }
+        sheet.getRange(emptyRow, 2).setValue(stockName);
+      }
+    } catch (e) {
+      // 如果無法取得資料，設定預設名稱
+      sheet.getRange(emptyRow, 2).setValue('請手動輸入名稱');
+    }
+
+    // 設定走勢圖公式
+    sheet.getRange(emptyRow, 3).setFormula(`=GETSPARKLINE("${code}")`);
+
+    ui.alert('成功', `股票 ${code} 已新增到第 ${emptyRow} 行`, ui.ButtonSet.OK);
+
+  } catch (e) {
+    Logger.log('addNewStock 錯誤: ' + e);
+    SpreadsheetApp.getUi().alert('新增股票時發生錯誤：' + e.toString());
+  }
+}
+
+/**
+ * 刪除股票功能
+ */
+function removeStock() {
+  try {
+    const ui = SpreadsheetApp.getUi();
+    const response = ui.prompt(
+      '刪除股票',
+      '請輸入要刪除的股票代號：',
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (response.getSelectedButton() !== ui.Button.OK) return;
+
+    const codeToDelete = response.getResponseText().trim();
+    if (!codeToDelete) {
+      ui.alert('錯誤', '股票代號不能為空', ui.ButtonSet.OK);
+      return;
+    }
+
+    const sheet = SpreadsheetApp.getActiveSheet();
+    const data = sheet.getDataRange().getValues();
+
+    let foundRow = -1;
+    for (let i = 1; i < data.length; i++) { // 從第2行開始
+      if (data[i][0] && data[i][0].toString().trim() === codeToDelete) {
+        foundRow = i + 1; // 1-indexed
+        break;
+      }
+    }
+
+    if (foundRow === -1) {
+      ui.alert('錯誤', `找不到股票代號：${codeToDelete}`, ui.ButtonSet.OK);
+      return;
+    }
+
+    // 確認刪除
+    const confirmResponse = ui.alert(
+      '確認刪除',
+      `確定要刪除第 ${foundRow} 行的股票 ${codeToDelete} 嗎？`,
+      ui.ButtonSet.YES_NO
+    );
+
+    if (confirmResponse !== ui.Button.YES) return;
+
+    // 清除該行資料
+    sheet.getRange(foundRow, 1, 1, 9).clearContent();
+
+    ui.alert('成功', `股票 ${codeToDelete} 已刪除`, ui.ButtonSet.OK);
+
+  } catch (e) {
+    Logger.log('removeStock 錯誤: ' + e);
+    SpreadsheetApp.getUi().alert('刪除股票時發生錯誤：' + e.toString());
   }
 }
