@@ -836,3 +836,101 @@ function testHistoryAndSparkline() {
     Logger.log("歷史資料測試錯誤: " + e);
   }
 }
+
+/**
+ * 完整功能測試套件
+ */
+function runFullTestSuite() {
+  Logger.log("=== 股價追蹤工具完整測試套件開始 ===");
+
+  try {
+    // 測試 1: 基本功能
+    Logger.log("--- 測試 1: 基本股價查詢 ---");
+    testBasicFunctionality();
+
+    // 測試 2: 完整價格指標
+    Logger.log("--- 測試 2: 完整價格指標 ---");
+    testPriceIndicators();
+
+    // 測試 3: 歷史資料和走勢圖
+    Logger.log("--- 測試 3: 歷史資料和走勢圖 ---");
+    testHistoryAndSparkline();
+
+    // 測試 4: 快取功能
+    Logger.log("--- 測試 4: 快取功能 ---");
+    testCacheFunctionality();
+
+    // 測試 5: 錯誤處理
+    Logger.log("--- 測試 5: 錯誤處理 ---");
+    testErrorHandling();
+
+    Logger.log("=== 完整測試套件執行完成 ===");
+
+  } catch (e) {
+    Logger.log("測試套件執行錯誤: " + e);
+  }
+}
+
+/**
+ * 測試快取功能
+ */
+function testCacheFunctionality() {
+  Logger.log("測試快取功能...");
+
+  try {
+    const testCode = "2330";
+
+    // 清除快取
+    cacheManager.clear();
+    Logger.log("快取已清除");
+
+    // 第一次呼叫 - 應該從 API 獲取
+    const startTime1 = new Date().getTime();
+    const price1 = stockPriceService.getPrice(testCode);
+    const endTime1 = new Date().getTime();
+
+    Logger.log("第一次呼叫 - 價格: " + JSON.stringify(price1) + ", 耗時: " + (endTime1 - startTime1) + "ms");
+
+    // 第二次呼叫 - 應該從快取獲取
+    const startTime2 = new Date().getTime();
+    const price2 = stockPriceService.getPrice(testCode);
+    const endTime2 = new Date().getTime();
+
+    Logger.log("第二次呼叫 - 價格: " + JSON.stringify(price2) + ", 耗時: " + (endTime2 - startTime2) + "ms");
+
+    // 驗證資料一致性
+    const isDataConsistent = JSON.stringify(price1) === JSON.stringify(price2);
+    Logger.log("快取資料一致性: " + (isDataConsistent ? "通過" : "失敗"));
+
+    Logger.log("快取功能測試完成");
+
+  } catch (e) {
+    Logger.log("快取測試錯誤: " + e);
+  }
+}
+
+/**
+ * 測試錯誤處理
+ */
+function testErrorHandling() {
+  Logger.log("測試錯誤處理...");
+
+  try {
+    // 測試無效股票代號
+    const invalidResult = TWSTOCKPRICE("INVALID");
+    Logger.log("無效代號結果: " + invalidResult);
+
+    // 測試空代號
+    const emptyResult = TWSTOCKPRICE("");
+    Logger.log("空代號結果: " + emptyResult);
+
+    // 測試不存在的股票
+    const nonexistentResult = TWSTOCKPRICE("999999");
+    Logger.log("不存在股票結果: " + nonexistentResult);
+
+    Logger.log("錯誤處理測試完成");
+
+  } catch (e) {
+    Logger.log("錯誤處理測試錯誤: " + e);
+  }
+}
