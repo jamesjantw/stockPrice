@@ -604,10 +604,12 @@ function TWSTOCKPRICE(stockCode) {
 
   try {
     // 使用同步方式取得價格（Google Sheets 公式限制）
-    const price = stockPriceService.getPrice(stockCode);
+    // 注意：Google Sheets 公式不能使用 async/await
+    // 這裡直接呼叫同步版本
+    const priceData = stockPriceService.getPrice(stockCode);
 
-    if (price !== null) {
-      return price;
+    if (priceData !== null && priceData.currentPrice !== null) {
+      return priceData.currentPrice;
     } else {
       return "無資料";
     }
@@ -635,6 +637,7 @@ function GETSPARKLINE(stockCode, days = 30) {
     const validDays = Math.max(1, Math.min(365, parseInt(days) || 30));
 
     // 使用同步方式取得歷史資料（Google Sheets 公式限制）
+    // 注意：Google Sheets 公式不能使用 async/await
     const history = stockPriceService.getHistory(stockCode, validDays);
 
     if (history && history.length > 0) {
@@ -680,6 +683,7 @@ function updateAllPrices() {
           SpreadsheetApp.getUi().alert(`正在更新股票 ${i + 1}/${stocks.length}...\n目前成功: ${successCount}, 失敗: ${errorCount}`);
         }
 
+        // 直接呼叫同步方法，避免 async/await 問題
         const priceData = stockPriceService.getPrice(stock.code);
 
         if (priceData !== null) {
