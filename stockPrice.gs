@@ -96,6 +96,65 @@ class StockPriceService {
   }
 
   /**
+   * 取得 TWSE 歷史價格資料
+   * @param {string} stockCode - 股票代號
+   * @param {number} days - 歷史天數 (預設 30)
+   * @returns {Promise<Array>} 歷史價格陣列
+   */
+  async getTWSEHistory(stockCode, days = 30) {
+    const cacheKey = `twse_history_${stockCode}_${days}`;
+    const cached = cacheManager.get(cacheKey);
+    if (cached !== null) return cached;
+
+    try {
+      const prices = [];
+      const endDate = new Date();
+
+      // 取得過去 N 天的資料
+      for (let i = 0; i < days; i++) {
+        const targetDate = new Date(endDate);
+        targetDate.setDate(endDate.getDate() - i);
+
+        // 跳過週末
+        if (targetDate.getDay() === 0 || targetDate.getDay() === 6) {
+          continue;
+        }
+
+        const dateStr = Utilities.formatDate(targetDate, "GMT+8", "yyyyMMdd");
+        const url = `${this.twseBaseUrl}/exchangeReport/STOCK_DAY?response=json&date=${dateStr}&stockNo=${stockCode}`;
+
+        try {
+          const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+          const json = JSON.parse(response.getContentText());
+
+          if (json && json.data && json.data.length > 0) {
+            const lastRow = json.data[json.data.length - 1];
+            const closePrice = parseFloat(lastRow[6].replace(/,/g, ""));
+            if (!isNaN(closePrice)) {
+              prices.unshift(closePrice); // 從舊到新排序
+            }
+          }
+        } catch (dayError) {
+          // 單日資料錯誤，繼續下一個日期
+          Logger.log(`取得 ${dateStr} 資料時發生錯誤: ${dayError}`);
+        }
+
+        // API 呼叫間隔，避免過度頻繁
+        Utilities.sleep(100);
+      }
+
+      // 只保留最近的有效價格
+      const validPrices = prices.slice(-days);
+      cacheManager.set(cacheKey, validPrices);
+      return validPrices;
+
+    } catch (e) {
+      Logger.log("TWSE 歷史資料錯誤: " + e);
+      return [];
+    }
+  }
+
+  /**
    * 取得 TPEX 股價
    * @param {string} stockCode - 股票代號
    * @returns {Promise<number|null>} 股價或 null
@@ -158,6 +217,47 @@ class StockPriceService {
   }
 
   /**
+   * 取得美股歷史價格資料
+   * @param {string} stockCode - 股票代號
+   * @param {number} days - 歷史天數 (預設 30)
+   * @returns {Promise<Array>} 歷史價格陣列
+   */
+  async getUSHistory(stockCode, days = 30) {
+    const cacheKey = `us_history_${stockCode}_${days}`;
+    const cached = cacheManager.get(cacheKey);
+    if (cached !== null) return cached;
+
+    try {
+      // 計算日期範圍
+      const endDate = Math.floor(Date.now() / 1000); // Unix timestamp
+      const startDate = endDate - (days * 24 * 60 * 60); // N 天前
+
+      const url = `${this.yahooBaseUrl}/v8/finance/chart/${stockCode}?period1=${startDate}&period2=${endDate}&interval=1d`;
+
+      const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+      const json = JSON.parse(response.getContentText());
+
+      if (json && json.chart && json.chart.result && json.chart.result[0]) {
+        const result = json.chart.result[0];
+        if (result.indicators && result.indicators.quote && result.indicators.quote[0]) {
+          const quotes = result.indicators.quote[0];
+          const closes = quotes.close || [];
+
+          // 過濾有效的價格資料
+          const validPrices = closes.filter(price => price !== null && !isNaN(price));
+          cacheManager.set(cacheKey, validPrices);
+          return validPrices;
+        }
+      }
+
+      return [];
+    } catch (e) {
+      Logger.log("Yahoo Finance 歷史資料錯誤: " + e);
+      return [];
+    }
+  }
+
+  /**
    * 根據股票代號判斷市場類型並取得價格
    * @param {string} stockCode - 股票代號
    * @returns {Promise<number|null>} 股價或 null
@@ -176,6 +276,30 @@ class StockPriceService {
     } else {
       // 假設是美股代號
       return await this.getUSPrice(stockCode);
+    }
+  }
+
+  /**
+   * 取得歷史價格資料
+   * @param {string} stockCode - 股票代號
+   * @param {number} days - 歷史天數 (預設 30)
+   * @returns {Promise<Array>} 歷史價格陣列
+   */
+  async getHistory(stockCode, days = 30) {
+    if (!stockCode || typeof stockCode !== 'string') return [];
+
+    stockCode = stockCode.trim();
+
+    // 判斷市場類型並呼叫對應的歷史資料方法
+    if (this.isListedStock(stockCode)) {
+      return await this.getTWSEHistory(stockCode, days);
+    } else if (this.isOTCStock(stockCode)) {
+      // TPEX 歷史資料可以使用類似的邏輯，暫時回傳空陣列
+      Logger.log("TPEX 歷史資料功能尚未實作");
+      return [];
+    } else {
+      // 美股
+      return await this.getUSHistory(stockCode, days);
     }
   }
 
@@ -294,6 +418,67 @@ class GoogleSheetsService {
   }
 }
 
+// ========== 資料處理服務 ==========
+
+/**
+ * 資料處理服務 - 處理股價資料格式化和圖表生成
+ */
+class DataProcessingService {
+  /**
+   * 生成 SPARKLINE 走勢圖公式
+   * @param {Array} prices - 價格陣列
+   * @returns {string} SPARKLINE 公式
+   */
+  generateSparkline(prices) {
+    if (!Array.isArray(prices) || prices.length === 0) {
+      return "無資料";
+    }
+
+    // 過濾無效價格
+    const validPrices = prices.filter(price => price !== null && !isNaN(price));
+
+    if (validPrices.length === 0) {
+      return "無資料";
+    }
+
+    // 生成 SPARKLINE 公式
+    const priceStr = validPrices.join(",");
+    return `=SPARKLINE({${priceStr}})`;
+  }
+
+  /**
+   * 格式化價格顯示
+   * @param {number} price - 價格
+   * @returns {string} 格式化的價格字串
+   */
+  formatPrice(price) {
+    if (price === null || isNaN(price)) {
+      return "無資料";
+    }
+
+    return price.toFixed(2);
+  }
+
+  /**
+   * 計算價格變化百分比
+   * @param {number} currentPrice - 目前價格
+   * @param {number} previousPrice - 前一個價格
+   * @returns {string} 變化百分比
+   */
+  calculateChangePercent(currentPrice, previousPrice) {
+    if (!currentPrice || !previousPrice || isNaN(currentPrice) || isNaN(previousPrice)) {
+      return "N/A";
+    }
+
+    const change = ((currentPrice - previousPrice) / previousPrice) * 100;
+    const sign = change >= 0 ? "+" : "";
+    return `${sign}${change.toFixed(2)}%`;
+  }
+}
+
+// 全域資料處理實例
+const dataProcessingService = new DataProcessingService();
+
 // ========== 公開函數 ==========
 
 /**
@@ -320,6 +505,37 @@ function TWSTOCKPRICE(stockCode) {
     }
   } catch (e) {
     Logger.log("TWSTOCKPRICE 錯誤: " + e);
+    return "錯誤";
+  }
+}
+
+/**
+ * 取得歷史走勢圖函數
+ * 使用方式：
+ * =GETSPARKLINE("2330") -> 產生走勢圖
+ * =GETSPARKLINE("2330", 60) -> 60 天走勢圖
+ *
+ * @param {string} stockCode - 股票代號
+ * @param {number} days - 天數 (預設 30)
+ * @returns {string} SPARKLINE 公式或錯誤訊息
+ */
+function GETSPARKLINE(stockCode, days = 30) {
+  if (!stockCode) return "無代號";
+
+  try {
+    // 驗證天數參數
+    const validDays = Math.max(1, Math.min(365, parseInt(days) || 30));
+
+    // 使用同步方式取得歷史資料（Google Sheets 公式限制）
+    const history = stockPriceService.getHistory(stockCode, validDays);
+
+    if (history && history.length > 0) {
+      return dataProcessingService.generateSparkline(history);
+    } else {
+      return "無歷史資料";
+    }
+  } catch (e) {
+    Logger.log("GETSPARKLINE 錯誤: " + e);
     return "錯誤";
   }
 }
@@ -421,4 +637,31 @@ function testBasicFunctionality() {
   Logger.log("Apple 價格: " + usPrice);
 
   Logger.log("基本功能測試完成");
+}
+
+/**
+ * 測試歷史資料和走勢圖功能
+ */
+function testHistoryAndSparkline() {
+  Logger.log("測試歷史資料和走勢圖功能...");
+
+  try {
+    // 測試台股歷史資料
+    const twseHistory = stockPriceService.getHistory("2330", 7);
+    Logger.log("台積電 7 天歷史資料: " + JSON.stringify(twseHistory));
+
+    // 測試美股歷史資料
+    const usHistory = stockPriceService.getHistory("AAPL", 7);
+    Logger.log("Apple 7 天歷史資料: " + JSON.stringify(usHistory));
+
+    // 測試 SPARKLINE 生成
+    if (twseHistory && twseHistory.length > 0) {
+      const sparkline = dataProcessingService.generateSparkline(twseHistory);
+      Logger.log("台積電 SPARKLINE: " + sparkline);
+    }
+
+    Logger.log("歷史資料和走勢圖測試完成");
+  } catch (e) {
+    Logger.log("歷史資料測試錯誤: " + e);
+  }
 }
