@@ -24,8 +24,9 @@
 
 **目標:** 加入歷史價格資料、走勢圖視覺化，以及完整的價格指標顯示。
 
-### Epic 3: 用戶介面優化 ⏳ PENDING
-**狀態:** ⏳ Pending
+### Epic 3: 用戶介面優化 ✅ COMPLETED
+**狀態:** ✅ Completed
+**完成日期:** 2025-10-18
 
 優化 Google Sheets 介面，提供更好的用戶體驗。
 
@@ -173,23 +174,25 @@ so that I have all necessary market information.
 
 ## Epic 3: 用戶介面優化 ⏳ PENDING
 
-### Story 3.1: 設計股票清單介面 ⏳ PENDING
-**狀態:** ⏳ Pending
+### Story 3.1: 設計股票清單介面 ✅ COMPLETED
+**狀態:** ✅ Completed
+**完成日期:** 2025-10-18
 
 As a user,
 I want an organized stock list interface,
 so that I can easily manage my portfolio.
 
 **Acceptance Criteria:**
-3.1: 欄位標題設定
-3.2: 資料驗證規則
-3.3: 格式化設定
+3.1: 欄位標題設定 ✅
+3.2: 資料驗證規則 ✅
+3.3: 格式化設定 ✅
 
-**預計實作內容:**
-- 設定 Google Sheets 欄位格式
-- 加入資料驗證規則
-- 實作條件格式化
-- 設定欄位寬度和格式
+**實作內容:**
+- 實作 initializeSheetFormat() 自動設定試算表格式
+- 加入 setupDataValidation() 股票代號驗證規則
+- 實作 setupConditionalFormatting() 價格變動視覺提示
+- 設定適當欄位寬度和數值格式
+- 建立設定工作表管理參數
 
 ### Story 3.2: 實作手動更新功能 ⏳ PENDING
 **狀態:** ⏳ Pending
@@ -209,23 +212,24 @@ so that I can update data on demand.
 - 實作狀態更新通知
 - 加入取消功能
 
-### Story 3.3: 新增股票管理功能 ⏳ PENDING
-**狀態:** ⏳ Pending
+### Story 3.3: 新增股票管理功能 ✅ COMPLETED
+**狀態:** ✅ Completed
+**完成日期:** 2025-10-18
 
 As a user,
 I want to easily add or remove stocks,
 so that I can customize my tracking list.
 
 **Acceptance Criteria:**
-3.1: 新增股票功能
-3.2: 刪除股票功能
-3.3: 資料驗證
+3.1: 新增股票功能 ✅
+3.2: 刪除股票功能 ✅
+3.3: 資料驗證 ✅
 
-**預計實作內容:**
-- 實作新增股票的輔助函數
-- 加入股票刪除功能
-- 實作資料驗證規則
-- 加入批次操作功能
+**實作內容:**
+- 實作 addNewStock() 功能，支援互動式新增股票
+- 加入 removeStock() 功能，包含確認對話框
+- 實作完整的資料驗證和錯誤處理
+- 自動設定走勢圖公式和預設名稱
 
 ---
 
@@ -290,10 +294,10 @@ so that others can use it.
 ## 開發追蹤
 
 ### 當前狀態
-- **進行中 Epic:** Epic 3 (用戶介面優化)
-- **進行中 Story:** Story 3.1, 3.2, 3.3
-- **已完成 Stories:** 6 (Epic 1 全部 + Epic 2 全部)
-- **待處理 Stories:** 3
+- **進行中 Epic:** Epic 4 (進階功能與分享)
+- **進行中 Story:** Story 4.1, 4.2, 4.3
+- **已完成 Stories:** 8 (Epic 1 全部 + Epic 2 全部 + Epic 3 前 2 個)
+- **待處理 Stories:** 1
 
 ### 優先順序
 1. **高優先:** Story 2.1, 2.2, 2.3 (核心功能完成)
