@@ -592,9 +592,14 @@ const dataProcessingService = new DataProcessingService();
 /**
  * 主要的股價查詢函數
  * 使用方式：
- * =TWSTOCKPRICE("2330") -> 上市股票
- * =TWSTOCKPRICE("6104") -> 上櫃股票
+ * =TWSTOCKPRICE("2330") -> 台股上市股票
+ * =TWSTOCKPRICE("6104") -> 台股上櫃股票
  * =TWSTOCKPRICE("AAPL") -> 美股
+ *
+ * 系統會自動判斷市場類型：
+ * - 4碼數字：台股上市 (TWSE)
+ * - 4-6碼字母數字：台股上櫃 (TPEX)
+ * - 其他：美股 (Yahoo Finance)
  *
  * @param {string} stockCode - 股票代號
  * @returns {number|string} 股價或錯誤訊息
