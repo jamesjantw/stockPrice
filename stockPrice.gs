@@ -865,9 +865,9 @@ function setupDataValidation(sheet) {
 
   // 自訂公式驗證：檢查是否為有效的股票代號格式
   const stockCodeValidation = SpreadsheetApp.newDataValidation()
-    .requireFormulaSatisfied('=OR(ISBLANK(A2), REGEXMATCH(A2, "^[0-9A-Z]{1,6}$"))')
-    .setAllowInvalid(false)
-    .setHelpText('請輸入有效的股票代號：\n- 台股上市：4碼數字 (如：2330)\n- 台股上櫃：4-6碼字母數字組合 (如：6104)\n- 美股：1-6碼字母 (如：AAPL, TSLA)\n\n注意：輸入後按 Enter 確認')
+    .requireTextContains('')
+    .setAllowInvalid(true)
+    .setHelpText('請輸入有效的股票代號：\n- 台股上市：4碼數字 (如：2330)\n- 台股上櫃：4-6碼字母數字組合 (如：6104)\n- 美股：1-6碼字母 (如：AAPL, TSLA, NVDA)\n\n注意：輸入後按 Enter 確認')
     .build();
 
   stockCodeRange.setDataValidation(stockCodeValidation);
