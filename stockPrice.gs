@@ -1163,11 +1163,11 @@ function addNewStock() {
       return;
     }
 
-    // 驗證股票代號格式（放寬限制）
-    if (!/^[0-9A-Z]{1,6}$/.test(code)) {
-      ui.alert('錯誤', '無效的股票代號格式', ui.ButtonSet.OK);
-      return;
-    }
+    // 移除股票代號格式驗證，讓系統處理
+    // if (!/^[0-9A-Z]{1,6}$/.test(code)) {
+    //   ui.alert('錯誤', '無效的股票代號格式', ui.ButtonSet.OK);
+    //   return;
+    // }
 
     const sheet = SpreadsheetApp.getActiveSheet();
 
