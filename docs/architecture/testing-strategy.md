@@ -1,4 +1,4 @@
-# ERP 月結 RPA 測試策略
+# 股價追蹤工具測試策略
 
 ## 測試金字塔 (Testing Pyramid)
 
@@ -6,125 +6,145 @@
 E2E 測試
   /  \
 整合測試
-  /    \
+   /    \
 單元測試
 ```
 
 ## 測試組織 (Test Organization)
 
-### 前端測試 (Frontend Tests)
-
-```
-tests/
-├── ui/
-│   ├── test_components.py     # 元件測試
-│   └── test_integration.py    # 整合測試
-└── test_main.py               # 應用程式測試
-```
-
-### 後端測試 (Backend Tests)
+### Apps Script 測試 (Apps Script Tests)
 
 ```
 tests/
 ├── services/
-│   ├── test_rpa_service.py    # RPA 服務測試
-│   └── test_task_service.py   # 任務服務測試
-├── models/
-│   └── test_models.py         # 模型測試
-└── test_api.py                # API 測試
-```
-
-### E2E 測試 (E2E Tests)
-
-```
-tests/
+│   ├── test_stock_price_service.js    # 股價服務測試
+│   └── test_cache_manager.js          # 快取管理器測試
+├── integration/
+│   └── test_api_integration.js        # API 整合測試
 └── e2e/
-    ├── test_full_workflow.py  # 完整工作流程測試
-    └── test_error_scenarios.py # 錯誤情境測試
+    ├── test_sheets_integration.js     # Sheets 整合測試
+    └── test_full_workflow.js          # 完整工作流程測試
+```
+
+### 手動測試 (Manual Tests)
+
+```
+manual-tests/
+├── test_cases.md           # 測試案例說明
+├── test_data.csv          # 測試資料
+└── test_results.md        # 測試結果記錄
 ```
 
 ## 測試範例 (Test Examples)
 
-### 前端元件測試 (Frontend Component Test)
+### 股價服務測試 (Stock Price Service Test)
 
-```python
-import pytest
-from components.dashboard import Dashboard
+```javascript
+// test_stock_price_service.js
+function testTWSEPriceRetrieval() {
+  // 測試 TWSE API 呼叫
+  const price = getTWSEPrice("2330");
+  assert(price !== null, "應該能取得台積電價格");
+  assert(typeof price === "number", "價格應該是數字");
+  assert(price > 0, "價格應該大於 0");
+}
 
-def test_dashboard_initialization():
-    dashboard = Dashboard()
-    assert dashboard is not None
-    assert dashboard.status_label.text() == "準備就緒"
+function testInvalidStockCode() {
+  // 測試無效股票代號
+  const price = getPrice("INVALID");
+  assert(price === null, "無效代號應該回傳 null");
+}
 ```
 
-### 後端 API 測試 (Backend API Test)
+### 快取管理器測試 (Cache Manager Test)
 
-```python
-import pytest
-from services.task_service import TaskService
+```javascript
+// test_cache_manager.js
+function testCacheSetAndGet() {
+  const cache = new CacheManager();
 
-def test_create_task():
-    service = TaskService()
-    task = service.create_task("測試任務", "2025-01-01")
-    assert task.name == "測試任務"
-    assert task.status == "pending"
+  // 測試快取設定和取得
+  cache.set("test_key", "test_value");
+  const value = cache.get("test_key");
+
+  assert(value === "test_value", "應該能取得快取值");
+}
+
+function testCacheExpiration() {
+  const cache = new CacheManager();
+
+  // 設定短暫過期時間的快取
+  cache.set("test_key", "test_value", 100); // 100ms
+  Utilities.sleep(200); // 等待過期
+
+  const value = cache.get("test_key");
+  assert(value === null, "過期快取應該回傳 null");
+}
 ```
 
-### E2E 測試 (E2E Test)
+### Google Sheets 整合測試 (Sheets Integration Test)
 
-```python
-import pytest
-from main import ERPApp
+```javascript
+// test_sheets_integration.js
+function testStockListReading() {
+  // 建立測試工作表
+  const testSheet = createTestSheet();
 
-def test_complete_closing_workflow():
-    app = ERPApp()
-    # 模擬完整月結流程
-    result = app.execute_closing("2025-01-01")
-    assert result.status == "completed"
+  // 測試股票清單讀取
+  const stocks = readStockList(testSheet);
+  assert(stocks.length > 0, "應該能讀取股票清單");
+  assert(stocks[0].code, "股票應該有代號");
+  assert(stocks[0].name, "股票應該有名稱");
+}
 ```
 
 ## 測試策略 (Testing Strategy)
 
 ### 測試目標
-- **單元測試**：驗證個別模組與函數的正確性
-- **整合測試**：驗證模組間互動與資料流
-- **E2E 測試**：驗證完整使用者工作流程
-- **效能測試**：確保系統回應時間符合需求
+- **單元測試**：驗證個別函數與類別的正確性
+- **整合測試**：驗證 API 呼叫與資料處理
+- **E2E 測試**：驗證 Google Sheets 完整工作流程
+- **效能測試**：確保 API 回應時間符合需求
 
 ### 測試框架選擇
-- **主要框架**：pytest - 功能強大且易於擴充
-- **模擬工具**：unittest.mock - 用於隔離測試
-- **視覺化測試**：pytest-playwright - 用於 UI 測試
-- **效能測試**：pytest-benchmark - 用於效能基準測試
+- **主要框架**：Google Apps Script 內建測試 + 手動測試
+- **模擬工具**：自訂 mock 函數
+- **Sheets 測試**：手動驗證試算表功能
+- **API 測試**：模擬外部 API 回應
 
 ### 測試覆蓋率目標
-- **單元測試**：80% 以上程式碼覆蓋率
-- **整合測試**：涵蓋所有關鍵互動路徑
-- **E2E 測試**：涵蓋主要使用者工作流程
-- **錯誤情境**：涵蓋常見錯誤與異常處理
+- **單元測試**：核心函數 80% 覆蓋率
+- **整合測試**：涵蓋所有 API 整合點
+- **E2E 測試**：涵蓋主要 Sheets 工作流程
+- **錯誤情境**：涵蓋 API 失敗與網路錯誤
 
 ## 測試執行環境
 
-### 本地測試環境
-```bash
-# 執行所有測試
-pytest tests/
+### Apps Script 測試環境
+```javascript
+// 在 Apps Script 編輯器中執行測試
+function runAllTests() {
+  testTWSEPriceRetrieval();
+  testCacheSetAndGet();
+  testStockListReading();
+  Logger.log("所有測試完成");
+}
 
-# 執行特定測試類別
-pytest tests/ui/ -v
-
-# 產生測試覆蓋率報告
-pytest --cov=src tests/
-
-# 執行效能測試
-pytest tests/performance/ --benchmark-only
+// 手動測試檢查清單
+function manualTestChecklist() {
+  Logger.log("手動測試檢查：");
+  Logger.log("1. TWSTOCKPRICE('2330') 回傳數字");
+  Logger.log("2. updateAllPrices() 更新多支股票");
+  Logger.log("3. 自訂選單正常顯示");
+  Logger.log("4. 快取功能正常運作");
+}
 ```
 
-### CI/CD 整合測試
-- **觸發條件**：所有推送到 main 分支的變更
-- **測試範圍**：完整測試套件執行
-- **品質閘門**：測試通過率 100%，覆蓋率不低於 80%
-- **報告產出**：測試結果與覆蓋率報告
+### 持續整合測試
+- **觸發條件**：程式碼推送到 main 分支
+- **測試範圍**：Apps Script 語法檢查和基本功能測試
+- **品質閘門**：無語法錯誤，基本函數可執行
+- **報告產出**：Apps Script 執行日誌
 
 ## 測試資料管理
 

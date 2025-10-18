@@ -1,63 +1,55 @@
-# ERP 月結 RPA 部署架構
+# 股價追蹤工具部署架構
 
 ## 部署策略 (Deployment Strategy)
 
-**前端部署：**
-- **平台：** 本地安裝
-- **建置命令：** pyinstaller --onefile src/main.py
-- **輸出目錄：** dist/
-- **CDN/邊緣：** 無需 CDN
+**Apps Script 部署：**
+- **平台：** Google Apps Script
+- **建置命令：** clasp push
+- **輸出目錄：** Google Drive
+- **CDN/邊緣：** Google 全球網路
 
-**後端部署：**
-- **平台：** 本地執行
-- **建置命令：** 無需建置
-- **部署方法：** 複製檔案至目標機器
+**Sheets 部署：**
+- **平台：** Google Sheets
+- **建置命令：** 手動設定
+- **部署方法：** 複製試算表範本
 
 ## CI/CD 管線 (CI/CD Pipeline)
 
 ```yaml
-name: CI/CD Pipeline
+name: Apps Script CI/CD Pipeline
 
 on: [push, pull_request]
 
 jobs:
-  test:
-    runs-on: windows-latest
+  validate:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-      - name: Run tests
-        run: |
-          pytest tests/
-      - name: Build application
-        run: |
-          pyinstaller --onefile src/main.py
+       - uses: actions/checkout@v2
+       - name: Validate JavaScript syntax
+         run: |
+           node -c stockPrice.gs
+       - name: Check file structure
+         run: |
+           ls -la *.gs docs/
 
   deploy:
-    needs: test
-    runs-on: windows-latest
+    needs: validate
+    runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v2
-      - name: Deploy to server
-        run: |
-          # 複製建置檔案至部署目錄
+       - name: Deploy to Apps Script
+         run: |
+           # clasp push 會在本地執行
+           echo "請在本地執行: clasp push"
 ```
 
 ## 環境 (Environments)
 
-| 環境 | 前端 URL | 後端 URL | 目的 |
-|------|----------|----------|------|
-| Development | localhost | localhost | 本地開發 |
-| Staging | N/A | N/A | 測試環境 |
-| Production | N/A | N/A | 正式環境 |
+| 環境 | Apps Script 狀態 | Sheets 位置 | 目的 |
+|------|------------------|-------------|------|
+| Development | clasp 開發模式 | 本地試算表 | 本地開發測試 |
+| Staging | Apps Script 測試 | 測試試算表 | 功能驗證 |
+| Production | Apps Script 正式 | 生產試算表 | 最終用戶使用 |
 
 ## 開發工作流程 (Development Workflow)
 
@@ -66,14 +58,14 @@ jobs:
 #### 先決條件 (Prerequisites)
 
 ```bash
-# 安裝 Python 3.11
-python --version
+# 安裝 Node.js (用於 clasp)
+node --version
 
-# 安裝 PyQt6
-pip install PyQt6
+# 全域安裝 clasp
+npm install -g @google/clasp
 
-# 安裝 RPA 工具
-pip install pyautogui pillow
+# 登入 Google 帳戶
+clasp login
 ```
 
 #### 初始設定 (Initial Setup)
@@ -81,33 +73,32 @@ pip install pyautogui pillow
 ```bash
 # 複製專案
 git clone <repository-url>
-cd erp-rpa
+cd stockPrice
 
-# 建立虛擬環境
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+# 建立新的 Apps Script 專案
+clasp create --title "股價追蹤工具"
 
-# 安裝依賴
-pip install -r requirements.txt
+# 複製程式碼檔案
+cp stockPrice.gs .
 
-# 執行應用程式
-python src/main.py
+# 推送程式碼到 Apps Script
+clasp push
 ```
 
 #### 開發命令 (Development Commands)
 
 ```bash
-# 啟動所有服務
-python src/main.py
+# 推送程式碼變更
+clasp push
 
-# 執行測試
-pytest tests/
+# 從 Apps Script 拉取最新程式碼
+clasp pull
 
-# 建置應用程式
-pyinstaller --onefile src/main.py
+# 開啟 Apps Script 編輯器
+clasp open
 
-# 檢查程式碼品質
-flake8 src/
+# 執行基本語法檢查
+node -c stockPrice.gs
 ```
 
 ### 環境設定 (Environment Configuration)

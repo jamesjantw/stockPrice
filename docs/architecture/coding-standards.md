@@ -1,7 +1,7 @@
-# Google App Script - 編碼標準 (Coding Standards)
+# 股價追蹤工具 - 編碼標準 (Coding Standards)
 
 **版本:** 1.0
-**作者:** James (Developer)
+**作者:** BMad Master (Code Mode)
 **日期:** 2025-10-18
 
 ## 1. 介紹 (Introduction)
@@ -54,60 +54,56 @@
 
 ---
 
-## 3. Python 後端標準
+## 3. Google Apps Script 標準
 
 ### 3.1. 風格與格式化
 
-*   **風格指南:** 所有 Python 程式碼都必須遵循 **PEP 8** 風格指南。
+*   **風格指南:** 所有 JavaScript 程式碼都必須遵循 **Google JavaScript Style Guide**。
 *   **自動格式化:**
-    *   **`Black`:** 我們使用 `Black` 來統一程式碼格式。在提交程式碼前，開發者應使用 `black .` 來格式化所有變更。
-    *   **`isort`:** 我們使用 `isort` 來自動排序 `import` 語句。`isort` 會將 `import` 分為三組：標準函式庫、第三方套件、本地應用程式。
+    *   **Prettier:** 我們使用 Prettier 來統一程式碼格式。在提交程式碼前，開發者應使用 prettier 來格式化所有變更。
 *   **Linter:**
-    *   **`Ruff` / `Flake8`:** 專案使用 `Ruff` 或 `Flake8` 進行靜態分析，以捕捉潛在的錯誤和不符合規範的寫法。CI/CD 流程會強制執行 Lint 檢查。
+    *   **ESLint:** 專案使用 ESLint 進行靜態分析，以捕捉潛在的錯誤和不符合規範的寫法。CI/CD 流程會強制執行 Lint 檢查。
 
 ### 3.2. 命名慣例 (Naming Conventions)
 
-*   **變數 (variables):** `snake_case` (小寫蛇形命名)，例如 `project_cost`。
-*   **函式 (functions):** `snake_case`，例如 `calculate_total_price()`。
-*   **類別 (classes):** `PascalCase` (大寫駝峰命名)，例如 `ProjectFinancialsView`。
-*   **常數 (constants):** `UPPER_SNAKE_CASE` (大寫蛇形命名)，例如 `DEFAULT_CURRENCY`。
+*   **變數 (variables):** `camelCase` (小寫駝峰命名)，例如 `stockPrice`。
+*   **函式 (functions):** `camelCase`，例如 `getStockPrice()`。
+*   **類別 (classes):** `PascalCase` (大寫駝峰命名)，例如 `StockPriceService`。
+*   **常數 (constants):** `UPPER_SNAKE_CASE` (大寫蛇形命名)，例如 `API_TIMEOUT`。
 
-### 3.3. 文件字串 (Docstrings)
+### 3.3. JSDoc 文件註解 (JSDoc Comments)
 
-*   所有公開的模組 (modules)、類別 (classes) 和函式 (functions) 都**必須**包含文件字串 (docstring)，並遵循 **PEP 257** 規範。
-*   文件字串應簡潔地描述該單元的功能、參數 (Args) 和回傳值 (Returns)。
+*   所有公開的函式都**必須**包含 JSDoc 註解。
+*   文件應簡潔地描述該函式的功能、參數和回傳值。
 
-```python
-def get_erp_project(project_id: str) -> dict:
-    """從 ERP 系統中獲取單一專案的資料。
-
-    Args:
-        project_id: 專案在 ERP 系統中的唯一識別碼。
-
-    Returns:
-        一個包含專案詳細資料的字典。
-    """
-    # ... 程式碼 ...
+```javascript
+/**
+ * 取得股價資料
+ * @param {string} stockCode - 股票代號
+ * @returns {Promise<number|null>} 股價或 null
+ */
+async function getStockPrice(stockCode) {
+  // ... 程式碼 ...
+}
 ```
 
 ---
 
-## 4. 安全性 (Security)
+## 4. Apps Script 安全性 (Security)
 
-*   **絕不提交密鑰:** 所有敏感資訊（`SECRET_KEY`, 資料庫密碼, API 金鑰等）都必須儲存在 `.env` 檔案中，並且 `.env` 檔案必須被列在 `.gitignore` 中。
-*   **善用 Django 內建安全機制:**
-    *   **SQL Injection:** 始終使用 Django ORM，絕不手動拼接 SQL 查詢字串。
-    *   **XSS:** 預設情況下 Django 模板會進行 HTML 轉義。絕不在未經審查的情況下對使用者輸入使用 `|safe` 過濾器。
-    *   **CSRF:** 確保所有 `POST` 表單都包含 `{% csrf_token %}`。
+*   **API 金鑰管理:** 敏感資訊應使用 Apps Script Properties Service 儲存，絕不硬編碼在程式碼中。
+*   **輸入驗證:** 所有用戶輸入必須進行格式驗證和清理。
+*   **錯誤處理:** 避免在錯誤訊息中暴露敏感資訊。
+*   **權限控制:** 僅請求必要的 Google 服務權限。
 
 ---
 
-## 5. 測試 (Testing)
+## 5. Apps Script 測試 (Testing)
 
-*   **框架:** 使用 `pytest-django` 作為主要的測試框架。
-*   **位置:** 測試案例應放置在各個 App 的 `tests/` 目錄下。
-*   **單元測試:** 專注於測試單一函式或類別的邏輯。應使用 `unittest.mock` 來模擬外部依賴（如 API 呼叫、資料庫）。
-*   **整合測試:** 專注於測試 Django 元件之間的互動，例如 View 是否能成功渲染、API 是否能從資料庫中正確取回資料。
+*   **框架:** 使用 Apps Script 內建測試功能和手動測試。
+*   **位置:** 測試函數應在主程式碼檔案中。
+*   **單元測試:** 專注於測試單一函數邏輯，使用 mock 函數模擬外部依賴。
+*   **整合測試:** 專注於測試與 Google Sheets 的互動。
 
 ---
 
