@@ -1163,8 +1163,8 @@ function addNewStock() {
       return;
     }
 
-    // 驗證股票代號格式
-    if (!/^[0-9A-Z]{4,6}$/.test(code)) {
+    // 驗證股票代號格式（放寬限制）
+    if (!/^[0-9A-Z]{1,6}$/.test(code)) {
       ui.alert('錯誤', '無效的股票代號格式', ui.ButtonSet.OK);
       return;
     }
