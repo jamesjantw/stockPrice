@@ -146,24 +146,28 @@ so that I can quickly understand price movements.
 - 支援可設定天數參數
 - 實作動態資料更新機制
 
-### Story 2.3: 實作完整價格指標顯示 ⏳ PENDING
-**狀態:** ⏳ Pending
+### Story 2.3: 實作完整價格指標顯示 ✅ COMPLETED
+**狀態:** ✅ Completed
+**完成日期:** 2025-10-18
 
 As a user,
 I want to see comprehensive price indicators,
 so that I have all necessary market information.
 
 **Acceptance Criteria:**
-2.1: 即時價格顯示 ✅ (部分完成)
-2.2: 昨日收盤價顯示
-2.3: 開盤價、最高價、最低價顯示
-2.4: 資料格式化
+2.1: 即時價格顯示 ✅
+2.2: 昨日收盤價顯示 ✅
+2.3: 開盤價、最高價、最低價顯示 ✅
+2.4: 資料格式化 ✅
 
-**預計實作內容:**
-- 擴展 API 以獲取完整價格指標
-- 實作資料格式化函數
-- 更新 Google Sheets 顯示邏輯
-- 加入資料驗證和錯誤處理
+**實作內容:**
+- 擴展 TWSE API 回傳完整價格指標 (開盤、最高、最低、昨收、成交量、漲跌)
+- 擴展 TPEX API 回傳完整價格指標
+- 擴展 Yahoo Finance API 回傳美股完整指標
+- 實作 formatPriceIndicators() 資料格式化函數
+- 更新 GoogleSheetsService.updatePrices() 處理所有欄位
+- 更新 updateAllPrices() 函數支援完整指標
+- 加入回溯相容性方法 getPriceOnly()
 
 ---
 
@@ -288,8 +292,8 @@ so that others can use it.
 ### 當前狀態
 - **進行中 Epic:** Epic 3 (用戶介面優化)
 - **進行中 Story:** Story 3.1, 3.2, 3.3
-- **已完成 Stories:** 5 (Epic 1 全部 + Epic 2 前 2 個)
-- **待處理 Stories:** 4
+- **已完成 Stories:** 6 (Epic 1 全部 + Epic 2 全部)
+- **待處理 Stories:** 3
 
 ### 優先順序
 1. **高優先:** Story 2.1, 2.2, 2.3 (核心功能完成)
