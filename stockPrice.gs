@@ -1593,15 +1593,23 @@ class GoogleSheetsService {
    * @param {string} stockName - 股票名稱
    */
   setAIAnalysisFormulas(sheet, rowIndex, stockCode, stockName = "") {
-    // 走勢分析 (J 欄) - 使用參考欄位 A 欄和 B 欄
-    const trendFormula = `=AI("分析 "&B${rowIndex}&" ("&A${rowIndex}&") 的近期走勢。請簡要描述趨勢方向和關鍵價位。", 0.3)`;
+    // 在隱藏欄位 M (13) 設定走勢分析提示文字
+    const trendPrompt = `分析 ${stockName} (${stockCode}) 的近期走勢。請簡要描述趨勢方向和關鍵價位。`;
+    sheet.getRange(rowIndex, 13).setValue(trendPrompt);
+
+    // 走勢分析 (J 欄) - 引用隱藏欄位的提示文字
+    const trendFormula = `=AI(M${rowIndex}, 0.3)`;
     sheet.getRange(rowIndex, 10).setFormula(trendFormula);
 
-    // 投資建議 (K 欄) - 使用參考欄位 A 欄和 B 欄
-    const investmentAdviceFormula = `=AI("請為 "&B${rowIndex}&" ("&A${rowIndex}&") 提供投資建議（買入/持有/賣出），並說明理由。", 0.4)`;
+    // 在隱藏欄位 N (14) 設定投資建議提示文字
+    const advicePrompt = `請為 ${stockName} (${stockCode}) 提供投資建議（買入/持有/賣出），並說明理由。`;
+    sheet.getRange(rowIndex, 14).setValue(advicePrompt);
+
+    // 投資建議 (K 欄) - 引用隱藏欄位的提示文字
+    const investmentAdviceFormula = `=AI(N${rowIndex}, 0.4)`;
     sheet.getRange(rowIndex, 11).setFormula(investmentAdviceFormula);
 
-    Logger.log(`設定 ${stockCode} 的 AI 分析公式完成 (使用參考欄位)`);
+    Logger.log(`設定 ${stockCode} 的 AI 分析公式完成 (使用隱藏欄位)`);
   }
 
   /**
@@ -2658,12 +2666,12 @@ function initializeSheetFormat() {
 
     // 設定欄位標題
     const headers = [
-      ['股票代號', '股票名稱', '走勢圖', '即時股價', '漲跌金額', '開盤價', '最高價', '最低價', '成交量', 'AI走勢分析', 'AI投資建議', '更新時間']
+      ['股票代號', '股票名稱', '走勢圖', '即時股價', '漲跌金額', '開盤價', '最高價', '最低價', '成交量', 'AI走勢分析', 'AI投資建議', '更新時間', 'AI提示_走勢', 'AI提示_建議']
     ];
-    sheet.getRange(1, 1, 1, 12).setValues(headers);
+    sheet.getRange(1, 1, 1, 14).setValues(headers);
 
     // 設定標題列格式
-    const headerRange = sheet.getRange(1, 1, 1, 12);
+    const headerRange = sheet.getRange(1, 1, 1, 14);
     headerRange.setFontWeight('bold');
     headerRange.setBackground('#e8f4fd');
     headerRange.setBorder(true, true, true, true, true, true);
@@ -2680,14 +2688,18 @@ function initializeSheetFormat() {
     sheet.setColumnWidth(8, 100); // 最低價
     sheet.setColumnWidth(9, 120); // 成交量
     sheet.setColumnWidth(10, 200); // AI走勢分析
+    sheet.getRange(1, 10).setBackground('#e8f5e8'); // 淺綠色背景
     sheet.setColumnWidth(11, 300); // AI投資建議
+    sheet.getRange(1, 11).setBackground('#f3e5f5'); // 淺紫色背景
     sheet.setColumnWidth(12, 150); // 更新時間
+    sheet.setColumnWidth(13, 0); // AI提示_走勢 (隱藏欄位)
+    sheet.setColumnWidth(14, 0); // AI提示_建議 (隱藏欄位)
 
     // 設定資料驗證規則
     setupDataValidation(sheet);
 
     // 設定條件格式化
-    setupConditionalFormatting(sheet, 12);
+    setupConditionalFormatting(sheet, 14);
 
     // 新增範例資料
     addSampleData(sheet);
@@ -2825,8 +2837,14 @@ function addSampleData(sheet) {
       sheet.getRange(rowNum, 7).setFormula(`=GOOGLEFINANCE(A${rowNum}, "high")`);   // 最高價
       sheet.getRange(rowNum, 8).setFormula(`=GOOGLEFINANCE(A${rowNum}, "low")`);    // 最低價
       sheet.getRange(rowNum, 9).setFormula(`=GOOGLEFINANCE(A${rowNum}, "volume")`); // 成交量
-      sheet.getRange(rowNum, 10).setFormula(`=AI("分析 "&B${rowNum}&" ("&A${rowNum}&") 的近期走勢。請簡要描述趨勢方向和關鍵價位。", 0.3)`); // AI走勢分析
-      sheet.getRange(rowNum, 11).setFormula(`=AI("請為 "&B${rowNum}&" ("&A${rowNum}&") 提供投資建議（買入/持有/賣出），並說明理由。", 0.4)`); // AI投資建議
+      // 在隱藏欄位設定提示文字
+      const trendPrompt = `分析 ${sampleData[i][1]} (${sampleData[i][0]}) 的近期走勢。請簡要描述趨勢方向和關鍵價位。`;
+      sheet.getRange(rowNum, 13).setValue(trendPrompt);
+      sheet.getRange(rowNum, 10).setFormula(`=AI(M${rowNum}, 0.3)`); // AI走勢分析
+
+      const advicePrompt = `請為 ${sampleData[i][1]} (${sampleData[i][0]}) 提供投資建議（買入/持有/賣出），並說明理由。`;
+      sheet.getRange(rowNum, 14).setValue(advicePrompt);
+      sheet.getRange(rowNum, 11).setFormula(`=AI(N${rowNum}, 0.4)`); // AI投資建議
       sheet.getRange(rowNum, 12).setValue(Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")); // 更新時間
     }
   }
@@ -3438,8 +3456,14 @@ function processStockAddition(input, inputType) {
     sheet.getRange(emptyRow, 7).setFormula(`=GOOGLEFINANCE(A${emptyRow}, "high")`);   // 最高價
     sheet.getRange(emptyRow, 8).setFormula(`=GOOGLEFINANCE(A${emptyRow}, "low")`);    // 最低價
     sheet.getRange(emptyRow, 9).setFormula(`=GOOGLEFINANCE(A${emptyRow}, "volume")`); // 成交量
-    sheet.getRange(emptyRow, 10).setFormula(`=AI("分析 "&B${emptyRow}&" ("&A${emptyRow}&") 的近期走勢。請簡要描述趨勢方向和關鍵價位。", 0.3)`); // AI走勢分析
-    sheet.getRange(emptyRow, 11).setFormula(`=AI("請為 "&B${emptyRow}&" ("&A${emptyRow}&") 提供投資建議（買入/持有/賣出），並說明理由。", 0.4)`); // AI投資建議
+    // 在隱藏欄位設定 AI 提示文字
+    const trendPrompt = `分析 ${stockName} (${stockCode}) 的近期走勢。請簡要描述趨勢方向和關鍵價位。`;
+    sheet.getRange(emptyRow, 13).setValue(trendPrompt);
+    sheet.getRange(emptyRow, 10).setFormula(`=AI(M${emptyRow}, 0.3)`); // AI走勢分析
+
+    const advicePrompt = `請為 ${stockName} (${stockCode}) 提供投資建議（買入/持有/賣出），並說明理由。`;
+    sheet.getRange(emptyRow, 14).setValue(advicePrompt);
+    sheet.getRange(emptyRow, 11).setFormula(`=AI(N${emptyRow}, 0.4)`); // AI投資建議
     sheet.getRange(emptyRow, 12).setValue(Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")); // 更新時間
 
     ui.alert('成功', `股票已新增到第 ${emptyRow} 行！\n\n代號: ${stockCode}\n名稱: ${stockName}\n\n所有公式已自動設定，請稍候讓 GOOGLEFINANCE 和 AI 函數載入資料。`, ui.ButtonSet.OK);
