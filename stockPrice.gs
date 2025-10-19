@@ -87,11 +87,11 @@ class GoogleFinanceService {
   }
 
   /**
-   * 產生 GOOGLEFINANCE 公式
-   * @param {string} stockCode - 股票代號
-   * @param {string} attribute - 屬性 (price, change, volume 等)
-   * @returns {string} GOOGLEFINANCE 公式
-   */
+     * 產生 GOOGLEFINANCE 公式
+     * @param {string} stockCode - 股票代號
+     * @param {string} attribute - 屬性 (price, change, volume 等)
+     * @returns {string} GOOGLEFINANCE 公式
+     */
   generateGoogleFinanceFormula(stockCode, attribute = "price") {
     // 對於台股，直接使用代號，GOOGLEFINANCE 會自動處理
     if (/^\d{4}$/.test(stockCode)) {
@@ -102,12 +102,12 @@ class GoogleFinanceService {
   }
 
   /**
-   * 產生 GOOGLEFINANCE 歷史資料公式
-   * @param {string} stockCode - 股票代號
-   * @param {number} days - 歷史天數
-   * @param {string} attribute - 屬性
-   * @returns {string} GOOGLEFINANCE 歷史資料公式
-   */
+     * 產生 GOOGLEFINANCE 歷史資料公式
+     * @param {string} stockCode - 股票代號
+     * @param {number} days - 歷史天數
+     * @param {string} attribute - 屬性
+     * @returns {string} GOOGLEFINANCE 歷史資料公式
+     */
   generateGoogleFinanceHistoryFormula(stockCode, days = 30, attribute = "close") {
     const mappedCode = this.mapper.mapToGoogleFinance(stockCode);
     const endDate = new Date();
@@ -121,14 +121,17 @@ class GoogleFinanceService {
   }
 
   /**
-   * 取得市場類型描述
-   * @param {string} stockCode - 股票代號
-   * @returns {string} 市場類型
-   */
+     * 取得市場類型描述
+     * @param {string} stockCode - 股票代號
+     * @returns {string} 市場類型
+     */
   getMarketType(stockCode) {
     return this.mapper.getMarketDescription(stockCode);
   }
 }
+
+// 全域 GOOGLEFINANCE 服務實例
+const googleFinanceService = new GoogleFinanceService();
 
 /**
  * 測試 GOOGLEFINANCE 整合功能
@@ -208,7 +211,6 @@ function testBatchUpdate() {
   Logger.log("測試批量更新功能...");
 
   try {
-    const sheetsService = new GoogleSheetsService();
     const sheet = sheetsService.getActiveSheet();
     const stocks = sheetsService.readStockList(sheet);
 
@@ -234,7 +236,7 @@ function testSheetFormatting() {
   Logger.log("測試試算表格式化...");
 
   try {
-    const sheet = SpreadsheetApp.getActiveSheet();
+    const sheet = sheetsService.getActiveSheet();
 
     // 測試條件格式化設定
     setupConditionalFormatting(sheet, 11);
@@ -268,14 +270,14 @@ function ensureFormulas(sheet, rowIndex, stockCode) {
 
   // 檢查並重新設定價格指標公式
   const priceCells = [
-    { col: 4, name: 'GOOGLEFINANCEPRICE', formula: `=GOOGLEFINANCEPRICE(A${rowIndex})` },
-    { col: 5, name: 'GOOGLEFINANCE_CHANGE', formula: `=GOOGLEFINANCE("TPE:${stockCode}", "change")` },
-    { col: 6, name: 'GOOGLEFINANCE_OPEN', formula: `=GOOGLEFINANCE("TPE:${stockCode}", "open")` },
-    { col: 7, name: 'GOOGLEFINANCE_HIGH', formula: `=GOOGLEFINANCE("TPE:${stockCode}", "high")` },
-    { col: 8, name: 'GOOGLEFINANCE_LOW', formula: `=GOOGLEFINANCE("TPE:${stockCode}", "low")` },
-    { col: 9, name: 'GOOGLEFINANCE_VOLUME', formula: `=GOOGLEFINANCE("TPE:${stockCode}", "volume")` },
-    { col: 10, name: 'AI_TREND', formula: `=AI("分析 ${stockCode} 的近期走勢。請簡要描述趨勢方向和關鍵價位。", 0.3)` },
-    { col: 11, name: 'AI_ADVICE', formula: `=AI("請為股票 ${stockCode} 提供投資建議（買入/持有/賣出），並說明理由。", 0.4)` }
+    { col: 4, name: 'GOOGLEFINANCEPRICE', formula: `=GOOGLEFINANCE(A${rowIndex}, "price")` },
+    { col: 5, name: 'GOOGLEFINANCE_CHANGE', formula: `=GOOGLEFINANCE(A${rowIndex}, "change")` },
+    { col: 6, name: 'GOOGLEFINANCE_OPEN', formula: `=GOOGLEFINANCE(A${rowIndex}, "open")` },
+    { col: 7, name: 'GOOGLEFINANCE_HIGH', formula: `=GOOGLEFINANCE(A${rowIndex}, "high")` },
+    { col: 8, name: 'GOOGLEFINANCE_LOW', formula: `=GOOGLEFINANCE(A${rowIndex}, "low")` },
+    { col: 9, name: 'GOOGLEFINANCE_VOLUME', formula: `=GOOGLEFINANCE(A${rowIndex}, "volume")` },
+    { col: 10, name: 'AI_TREND', formula: `=AI(M${rowIndex}, 0.3)` },
+    { col: 11, name: 'AI_ADVICE', formula: `=AI(N${rowIndex}, 0.4)` }
   ];
 
   priceCells.forEach(({ col, name, formula }) => {
@@ -1357,9 +1359,6 @@ class StockPriceService {
   }
 }
 
-// 全域服務實例
-const googleFinanceService = new GoogleFinanceService();
-
 // ========== AI 分析服務 ==========
 
 /**
@@ -1465,9 +1464,6 @@ class AIAnalysisService {
   }
 }
 
-// 全域 AI 分析實例
-const aiAnalysisService = new AIAnalysisService();
-
 // ========== Google Sheets 整合服務 ==========
 
 /**
@@ -1527,14 +1523,17 @@ class GoogleSheetsService {
       try {
         Logger.log(`更新股票 ${stock.code} 的公式`);
 
-        // 設定 GOOGLEFINANCE 公式
+        // 設定 GOOGLEFINANCE 公式 (使用欄位引用)
         this.setGoogleFinanceFormulas(sheet, stock.rowIndex, stock.code);
-
+    
+        // 設定 GETSPARKLINE 公式
+        this.setSparklineFormula(sheet, stock.rowIndex, stock.code);
+    
         // 設定 AI 分析公式
         this.setAIAnalysisFormulas(sheet, stock.rowIndex, stock.code, stock.name);
 
         // 更新時間戳
-        sheet.getRange(stock.rowIndex, 11).setValue(timestamp);
+        sheet.getRange(stock.rowIndex, 12).setValue(timestamp);
 
         Logger.log(`股票 ${stock.code} 公式更新完成`);
 
@@ -1542,7 +1541,7 @@ class GoogleSheetsService {
         Logger.log(`更新股票 ${stock.code} 公式時發生錯誤: ${e}`);
         // 設定錯誤狀態
         sheet.getRange(stock.rowIndex, 4).setValue("公式錯誤");
-        sheet.getRange(stock.rowIndex, 11).setValue(timestamp);
+        sheet.getRange(stock.rowIndex, 12).setValue(timestamp);
       }
     }
 
@@ -1558,58 +1557,33 @@ class GoogleSheetsService {
    * @param {string} stockCode - 股票代號
    */
   setGoogleFinanceFormulas(sheet, rowIndex, stockCode) {
-    // 即時股價 (D 欄) - 使用參考欄位 A 欄
+    // 使用欄位引用，讓 GOOGLEFINANCE 自動處理市場映射
+
+    // 即時股價 (D 欄) - 引用 A 欄的股票代號
     const priceFormula = `=GOOGLEFINANCE(A${rowIndex}, "price")`;
     sheet.getRange(rowIndex, 4).setFormula(priceFormula);
 
-    // 漲跌金額 (E 欄) - 使用參考欄位 A 欄
+    // 漲跌金額 (E 欄) - 引用 A 欄的股票代號
     const changeFormula = `=GOOGLEFINANCE(A${rowIndex}, "change")`;
     sheet.getRange(rowIndex, 5).setFormula(changeFormula);
 
-    // 開盤價 (F 欄) - 使用參考欄位 A 欄
+    // 開盤價 (F 欄) - 引用 A 欄的股票代號
     const openFormula = `=GOOGLEFINANCE(A${rowIndex}, "open")`;
     sheet.getRange(rowIndex, 6).setFormula(openFormula);
 
-    // 最高價 (G 欄) - 使用參考欄位 A 欄
+    // 最高價 (G 欄) - 引用 A 欄的股票代號
     const highFormula = `=GOOGLEFINANCE(A${rowIndex}, "high")`;
     sheet.getRange(rowIndex, 7).setFormula(highFormula);
 
-    // 最低價 (H 欄) - 使用參考欄位 A 欄
+    // 最低價 (H 欄) - 引用 A 欄的股票代號
     const lowFormula = `=GOOGLEFINANCE(A${rowIndex}, "low")`;
     sheet.getRange(rowIndex, 8).setFormula(lowFormula);
 
-    // 成交量 (I 欄) - 使用參考欄位 A 欄
+    // 成交量 (I 欄) - 引用 A 欄的股票代號
     const volumeFormula = `=GOOGLEFINANCE(A${rowIndex}, "volume")`;
     sheet.getRange(rowIndex, 9).setFormula(volumeFormula);
 
-    Logger.log(`設定 ${stockCode} 的 GOOGLEFINANCE 公式完成 (使用參考欄位)`);
-  }
-
-  /**
-   * 設定 AI 分析公式
-   * @param {Sheet} sheet - 工作表
-   * @param {number} rowIndex - 行索引
-   * @param {string} stockCode - 股票代號
-   * @param {string} stockName - 股票名稱
-   */
-  setAIAnalysisFormulas(sheet, rowIndex, stockCode, stockName = "") {
-    // 在隱藏欄位 M (13) 設定走勢分析提示文字
-    const trendPrompt = `分析 ${stockName} (${stockCode}) 的近期走勢。請簡要描述趨勢方向和關鍵價位。`;
-    sheet.getRange(rowIndex, 13).setValue(trendPrompt);
-
-    // 走勢分析 (J 欄) - 引用隱藏欄位的提示文字
-    const trendFormula = `=AI(M${rowIndex}, 0.3)`;
-    sheet.getRange(rowIndex, 10).setFormula(trendFormula);
-
-    // 在隱藏欄位 N (14) 設定投資建議提示文字
-    const advicePrompt = `請為 ${stockName} (${stockCode}) 提供投資建議（買入/持有/賣出），並說明理由。`;
-    sheet.getRange(rowIndex, 14).setValue(advicePrompt);
-
-    // 投資建議 (K 欄) - 引用隱藏欄位的提示文字
-    const investmentAdviceFormula = `=AI(N${rowIndex}, 0.4)`;
-    sheet.getRange(rowIndex, 11).setFormula(investmentAdviceFormula);
-
-    Logger.log(`設定 ${stockCode} 的 AI 分析公式完成 (使用隱藏欄位)`);
+    Logger.log(`設定 ${stockCode} 的 GOOGLEFINANCE 公式完成 (使用欄位引用)`);
   }
 
   /**
@@ -1662,6 +1636,57 @@ class GoogleSheetsService {
     SpreadsheetApp.flush();
     Logger.log("試算表重新整理完成");
   }
+
+  /**
+   * 設定 AI 分析公式
+   * @param {Sheet} sheet - 工作表
+   * @param {number} rowIndex - 行索引
+   * @param {string} stockCode - 股票代號
+   * @param {string} stockName - 股票名稱
+   */
+  setAIAnalysisFormulas(sheet, rowIndex, stockCode, stockName = "") {
+    // 在隱藏欄位 M (13) 設定走勢分析提示文字
+    const trendPrompt = `分析 ${stockName} (${stockCode}) 的近期走勢。請簡要描述趨勢方向和關鍵價位。`;
+    sheet.getRange(rowIndex, 13).setValue(trendPrompt);
+
+    // 走勢分析 (J 欄) - 引用隱藏欄位的提示文字
+    const trendFormula = `=AI(M${rowIndex}, 0.3)`;
+    sheet.getRange(rowIndex, 10).setFormula(trendFormula);
+
+    // 在隱藏欄位 N (14) 設定投資建議提示文字
+    const advicePrompt = `請為 ${stockName} (${stockCode}) 提供投資建議（買入/持有/賣出），並說明理由。`;
+    sheet.getRange(rowIndex, 14).setValue(advicePrompt);
+
+    // 投資建議 (K 欄) - 引用隱藏欄位的提示文字
+    const investmentAdviceFormula = `=AI(N${rowIndex}, 0.4)`;
+    sheet.getRange(rowIndex, 11).setFormula(investmentAdviceFormula);
+
+    Logger.log(`設定 ${stockCode} 的 AI 分析公式完成 (使用隱藏欄位)`);
+  }
+
+  /**
+   * 重新整理試算表（強制重新計算所有公式）
+   * @param {Sheet} sheet - 工作表
+   */
+  refreshSheet(sheet) {
+    Logger.log("開始重新整理試算表，強制重新計算公式");
+
+    // 強制重新計算公式
+    sheet.getDataRange().getFormulas().forEach((row, rowIndex) => {
+      row.forEach((formula, colIndex) => {
+        if (formula) {
+          const range = sheet.getRange(rowIndex + 1, colIndex + 1);
+          range.setFormula(formula);
+        }
+      });
+    });
+
+    // 使用 SpreadsheetApp.flush() 確保所有變更都被應用
+    SpreadsheetApp.flush();
+    Logger.log("試算表重新整理完成");
+  }
+
+
 }
 
 // ========== 資料處理服務 ==========
@@ -1757,8 +1782,17 @@ class DataProcessingService {
 // 全域資料處理實例
 const dataProcessingService = new DataProcessingService();
 
-// 全域快取實例 - 移到類別定義之後
+// 全域快取實例
 const cacheManager = new CacheManager();
+
+// 全域股價服務實例
+const stockPriceService = new StockPriceService();
+
+// 全域 AI 分析實例
+const aiAnalysisService = new AIAnalysisService();
+
+// 全域 Google Sheets 服務實例
+const sheetsService = new GoogleSheetsService();
 
 // ========== 公開函數 ==========
 
@@ -1999,8 +2033,8 @@ function GETSPARKLINE(stockCode, days = null) {
 
     const historyFormula = `GOOGLEFINANCE("${mappedCode}", "close", "${startDateStr}", "${endDateStr}")`;
 
-    // 產生 SPARKLINE 公式 - 直接回傳圖表而非文字
-    const sparklineFormula = `=SPARKLINE(${historyFormula}, {"charttype","line"; "color","blue"; "linewidth",2})`;
+    // 產生 SPARKLINE 公式 - 直接回傳圖表公式，不要包裝在等號中
+    const sparklineFormula = `SPARKLINE(${historyFormula}, {"charttype","line"; "color","blue"; "linewidth",2})`;
 
     Logger.log("GETSPARKLINE 公式: " + sparklineFormula);
     return `=${sparklineFormula}`;
@@ -2185,7 +2219,7 @@ function showAllPricesProgressDialog(stockCount) {
       </html>
     `).setWidth(500).setHeight(350);
 
-    SpreadsheetApp.getUi().showModalDialog(html, '更新所有股票資料 (${stockCount} 支股票)');
+    SpreadsheetApp.getUi().showModalDialog(html, `更新所有股票資料 (${stockCount} 支股票)`);
 
   } catch (e) {
     Logger.log('showAllPricesProgressDialog 錯誤: ' + e);
@@ -2199,7 +2233,6 @@ function showAllPricesProgressDialog(stockCount) {
 function executeUpdateAllPrices() {
   try {
     const startTime = new Date();
-    const sheetsService = new GoogleSheetsService();
     const sheet = sheetsService.getActiveSheet();
     const stocks = sheetsService.readStockList(sheet);
 
@@ -2396,7 +2429,7 @@ function updateSingleStockWithProgress(stockCode, stockName, rowIndex) {
 function executeUpdateSingleStock(stockCode, rowIndex) {
   try {
     const startTime = new Date();
-    const sheet = SpreadsheetApp.getActiveSheet();
+    const sheet = sheetsService.getActiveSheet();
 
     Logger.log(`開始執行單支股票更新: ${stockCode}, 行: ${rowIndex}`);
 
@@ -2431,7 +2464,7 @@ function executeUpdateSingleStock(stockCode, rowIndex) {
       }
 
       // 更新時間戳
-      sheet.getRange(rowIndex, 9).setValue(
+      sheet.getRange(rowIndex, 12).setValue(
         Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")
       );
 
@@ -2497,14 +2530,14 @@ function updateSingleStockWithProgress(stockCode, rowIndex) {
     const startTime = new Date();
     Logger.log(`開始更新單支股票: ${stockCode}, 行: ${rowIndex}`);
 
-    const sheet = SpreadsheetApp.getActiveSheet();
+    const sheet = sheetsService.getActiveSheet();
 
     // 驗證股票代號是否能取得資料
     const priceData = stockPriceService.getPriceSync(stockCode);
 
     if (priceData !== null && priceData.currentPrice !== null && priceData.currentPrice !== undefined) {
       // 只更新時間戳，強制重新計算公式
-      sheet.getRange(rowIndex, 9).setValue(
+      sheet.getRange(rowIndex, 12).setValue(
         Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")
       );
 
@@ -2655,7 +2688,7 @@ function showProgressDialog() {
  */
 function initializeSheetFormat() {
   try {
-    const sheet = SpreadsheetApp.getActiveSheet();
+    const sheet = sheetsService.getActiveSheet();
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
     // 設定工作表名稱
@@ -2668,38 +2701,30 @@ function initializeSheetFormat() {
     const headers = [
       ['股票代號', '股票名稱', '走勢圖', '即時股價', '漲跌金額', '開盤價', '最高價', '最低價', '成交量', 'AI走勢分析', 'AI投資建議', '更新時間', 'AI提示_走勢', 'AI提示_建議']
     ];
-    sheet.getRange(1, 1, 1, 14).setValues(headers);
+    sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
 
     // 設定標題列格式
-    const headerRange = sheet.getRange(1, 1, 1, 14);
+    const headerRange = sheet.getRange(1, 1, 1, headers[0].length);
     headerRange.setFontWeight('bold');
     headerRange.setBackground('#e8f4fd');
     headerRange.setBorder(true, true, true, true, true, true);
     headerRange.setFontColor('#2c3e50');
 
     // 設定欄位寬度
-    sheet.setColumnWidth(1, 100); // 股票代號
-    sheet.setColumnWidth(2, 120); // 股票名稱
-    sheet.setColumnWidth(3, 200); // 走勢圖
-    sheet.setColumnWidth(4, 100); // 即時股價
-    sheet.setColumnWidth(5, 100); // 漲跌金額
-    sheet.setColumnWidth(6, 100); // 開盤價
-    sheet.setColumnWidth(7, 100); // 最高價
-    sheet.setColumnWidth(8, 100); // 最低價
-    sheet.setColumnWidth(9, 120); // 成交量
-    sheet.setColumnWidth(10, 200); // AI走勢分析
-    sheet.getRange(1, 10).setBackground('#e8f5e8'); // 淺綠色背景
-    sheet.setColumnWidth(11, 300); // AI投資建議
-    sheet.getRange(1, 11).setBackground('#f3e5f5'); // 淺紫色背景
-    sheet.setColumnWidth(12, 150); // 更新時間
-    sheet.setColumnWidth(13, 0); // AI提示_走勢 (隱藏欄位)
-    sheet.setColumnWidth(14, 0); // AI提示_建議 (隱藏欄位)
+    const columnWidths = [100, 120, 200, 100, 100, 100, 100, 100, 120, 200, 300, 150, 0, 0];
+    for (let i = 0; i < columnWidths.length; i++) {
+      sheet.setColumnWidth(i + 1, columnWidths[i]);
+    }
+
+    // 設定特殊欄位背景色
+    sheet.getRange(1, 10).setBackground('#e8f5e8'); // AI走勢分析 - 淺綠色背景
+    sheet.getRange(1, 11).setBackground('#f3e5f5'); // AI投資建議 - 淺紫色背景
 
     // 設定資料驗證規則
     setupDataValidation(sheet);
 
     // 設定條件格式化
-    setupConditionalFormatting(sheet, 14);
+    setupConditionalFormatting(sheet, headers[0].length);
 
     // 新增範例資料
     addSampleData(sheet);
@@ -2761,7 +2786,6 @@ function setupConditionalFormatting(sheet, totalColumns = 12) {
 
   const changeRedRule = SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied('=AND(NOT(ISBLANK($E2)), $E2 < 0)')
-    .setBackground('#f4cccc') // 淺紅色
     .setBackground('#f4cccc') // 淺紅色
     .setFontColor('#c62828') // 深紅色文字
     .setRanges([changeRangeE])
@@ -2827,7 +2851,7 @@ function addSampleData(sheet) {
     // 先設定股票代號和名稱
     sheet.getRange(2, 1, sampleData.length, 2).setValues(sampleData);
 
-    // 設定公式 (參考 A 欄和 B 欄)
+    // 設定公式 (使用欄位引用)
     for (let i = 0; i < sampleData.length; i++) {
       const rowNum = i + 2; // 第2行開始
       sheet.getRange(rowNum, 3).setFormula(`=GETSPARKLINE(A${rowNum})`);        // 走勢圖
@@ -3234,22 +3258,22 @@ function testCacheFunctionality() {
 }
 
 /**
- * 測試錯誤處理
- */
+  * 測試錯誤處理
+  */
 function testErrorHandling() {
   Logger.log("測試錯誤處理...");
 
   try {
     // 測試無效股票代號
-    const invalidResult = TWSTOCKPRICE("INVALID");
+    const invalidResult = GOOGLEFINANCEPRICE("INVALID");
     Logger.log("無效代號結果: " + invalidResult);
 
     // 測試空代號
-    const emptyResult = TWSTOCKPRICE("");
+    const emptyResult = GOOGLEFINANCEPRICE("");
     Logger.log("空代號結果: " + emptyResult);
 
     // 測試不存在的股票
-    const nonexistentResult = TWSTOCKPRICE("999999");
+    const nonexistentResult = GOOGLEFINANCEPRICE("999999");
     Logger.log("不存在股票結果: " + nonexistentResult);
 
     Logger.log("錯誤處理測試完成");
@@ -3359,7 +3383,7 @@ function promptForStockInput(inputType) {
 function processStockAddition(input, inputType) {
   try {
     const ui = SpreadsheetApp.getUi();
-    const sheet = SpreadsheetApp.getActiveSheet();
+    const sheet = sheetsService.getActiveSheet();
 
     let stockCode = '';
     let stockName = '';
@@ -3448,7 +3472,7 @@ function processStockAddition(input, inputType) {
     sheet.getRange(emptyRow, 1).setValue(stockCode);
     sheet.getRange(emptyRow, 2).setValue(stockName);
 
-    // 設定所有公式 (使用參考欄位)
+    // 設定所有公式 (使用欄位引用)
     sheet.getRange(emptyRow, 3).setFormula(`=GETSPARKLINE(A${emptyRow})`);        // 走勢圖
     sheet.getRange(emptyRow, 4).setFormula(`=GOOGLEFINANCE(A${emptyRow}, "price")`); // 即時股價
     sheet.getRange(emptyRow, 5).setFormula(`=GOOGLEFINANCE(A${emptyRow}, "change")`); // 漲跌金額
@@ -3494,7 +3518,7 @@ function removeStock() {
       return;
     }
 
-    const sheet = SpreadsheetApp.getActiveSheet();
+    const sheet = sheetsService.getActiveSheet();
     const data = sheet.getDataRange().getValues();
 
     let foundRow = -1;
@@ -3519,8 +3543,8 @@ function removeStock() {
 
     if (confirmResponse !== ui.Button.YES) return;
 
-    // 清除該行資料 (12 欄位)
-    sheet.getRange(foundRow, 1, 1, 12).clearContent();
+    // 清除該行資料 (14 欄位，包含隱藏欄位)
+    sheet.getRange(foundRow, 1, 1, 14).clearContent();
 
     ui.alert('成功', `股票 ${codeToDelete} 已刪除`, ui.ButtonSet.OK);
 
@@ -3570,7 +3594,7 @@ function showHelpDialog() {
             <li><strong>股票代號：</strong> 台股 4 碼數字，美股代號</li>
             <li><strong>股票名稱：</strong> 手動輸入或自動推測</li>
             <li><strong>走勢圖：</strong> GOOGLEFINANCE 歷史資料產生的 SPARKLINE</li>
-            <li><strong>即時股價：</strong> GOOGLEFINANCE("TPE:代號", "price")</li>
+            <li><strong>即時股價：</strong> GOOGLEFINANCE(A2, "price")</li>
             <li><strong>漲跌金額：</strong> 當日漲跌金額，正數綠色，負數紅色</li>
             <li><strong>開盤價：</strong> 當日開盤價格</li>
             <li><strong>最高價/最低價：</strong> 當日價格區間</li>

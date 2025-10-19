@@ -1,7 +1,7 @@
 # 故事：重新定義股價追蹤工具
 
 **故事 ID:** STORY-REDESIGN-001
-**狀態:** Ready for Review
+**狀態:** Completed
 **優先級:** High
 **實際工時:** 16 小時
 **故事點數:** 8
@@ -144,6 +144,7 @@
 ### 除錯記錄 (Debug Log)
 - 2025-10-19: 開始重新定義專案架構
 - 2025-10-19: 修復 CacheManager 初始化順序錯誤
+- 2025-10-19: 修正公式錯誤，將 D 欄開始的公式改為使用欄位引用
 - 2025-10-19: 完成所有功能實作和測試
 - 2025-10-19: 更新 README.md 和架構文件
 
@@ -151,19 +152,21 @@
 - 專案重新定義完成，新的架構將大幅簡化程式碼並提升效能
 - 成功整合 GOOGLEFINANCE 和 AI() 函數
 - 實現零 API 呼叫架構，大幅提升穩定性和速度
+- 修正公式錯誤，將 D 欄開始的公式改為使用欄位引用
 - 所有測試通過，功能完整實現
 - 向下相容性良好，舊版函數保留
 
 ### 檔案清單 (File List)
-- 修改: `stockPrice.gs` - 主要程式碼檔案 (3454 行)
+- 修改: `stockPrice.gs` - 主要程式碼檔案 (3625 行)
 - 修改: `README.md` - 使用者說明文件 (大幅更新)
 - 修改: `docs/stories/story-redesign-stock-price-tracker.md` - 故事文件
 - 新增: `docs/architecture/redesign-architecture.md` - 新架構文件
 
 ### 變更記錄 (Change Log)
 - 2025-10-19: 創建故事文件，開始架構重新設計
+- 2025-10-19: 修正公式錯誤，將 D 欄開始的公式改為使用欄位引用
 - 2025-10-19: 完成所有開發任務和測試
 - 2025-10-19: 更新所有文件，專案進入 Ready for Review 狀態
 
 ### 狀態 (Status)
-Ready for Review
+Completed
