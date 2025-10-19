@@ -93,6 +93,36 @@ class StockPriceService {
       const responseCode = response.getResponseCode();
       Logger.log("TWSE Response Code: " + responseCode);
 
+      // 處理重新導向 (307 Temporary Redirect)
+      if (responseCode === 307) {
+        const redirectUrl = response.getHeaders()['Location'] || response.getHeaders()['location'];
+        Logger.log("TWSE 重新導向到: " + redirectUrl);
+
+        if (redirectUrl) {
+          // 重新發送請求到重新導向的 URL
+          const redirectResponse = UrlFetchApp.fetch(redirectUrl, {
+            muteHttpExceptions: true,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+          });
+
+          const redirectCode = redirectResponse.getResponseCode();
+          Logger.log("重新導向回應碼: " + redirectCode);
+
+          if (redirectCode === 200) {
+            const redirectJsonText = redirectResponse.getContentText();
+            Logger.log("重新導向回應資料長度: " + redirectJsonText.length);
+            const json = JSON.parse(redirectJsonText);
+            // 使用重新導向的回應繼續處理
+            return this.processTWSEData(json, stockCode);
+          }
+        }
+
+        Logger.log("TWSE 重新導向處理失敗");
+        return null;
+      }
+
       if (responseCode !== 200) {
         Logger.log("TWSE API 回應錯誤: " + responseCode);
         return null;
@@ -103,40 +133,51 @@ class StockPriceService {
       Logger.log("TWSE Raw Response: " + jsonText.substring(0, 300));
 
       const json = JSON.parse(jsonText);
-
-      if (json && json.data && json.data.length > 0) {
-        // TWSE 回傳的是當日或最近交易日的資料
-        const lastRow = json.data[json.data.length - 1];
-        Logger.log("TWSE Last Row: " + JSON.stringify(lastRow));
-
-        // TWSE 資料欄位：["日期", "成交股數", "成交金額", "開盤價", "最高價", "最低價", "收盤價", "漲跌價", "成交筆數"]
-        const priceData = {
-          currentPrice: parseFloat(lastRow[6].replace(/,/g, "")), // 收盤價 (index 6)
-          previousClose: parseFloat(lastRow[3].replace(/,/g, "")), // 開盤價作為昨收參考 (index 3)
-          openPrice: parseFloat(lastRow[3].replace(/,/g, "")), // 開盤價 (index 3)
-          highPrice: parseFloat(lastRow[4].replace(/,/g, "")), // 最高價 (index 4)
-          lowPrice: parseFloat(lastRow[5].replace(/,/g, "")), // 最低價 (index 5)
-          volume: parseInt(lastRow[1].replace(/,/g, "")), // 成交量 (index 1)
-          change: parseFloat(lastRow[7].replace(/,/g, "")) // 漲跌價 (index 7)
-        };
-
-        // 驗證資料完整性
-        if (isNaN(priceData.currentPrice) || priceData.currentPrice <= 0) {
-          Logger.log("TWSE 價格資料無效: " + priceData.currentPrice);
-          return null;
-        }
-
-        Logger.log("TWSE 成功取得資料: " + JSON.stringify(priceData));
-        cacheManager.set(cacheKey, priceData);
-        return priceData;
-      }
-
-      Logger.log("TWSE 無資料或資料格式錯誤");
-      return null;
+      return this.processTWSEData(json, stockCode);
     } catch (e) {
       Logger.log("TWSE 錯誤: " + e);
       return null;
     }
+  }
+
+  /**
+   * 處理 TWSE JSON 資料並提取價格資訊
+   * @param {Object} json - TWSE API 回傳的 JSON 資料
+   * @param {string} stockCode - 股票代號 (用於快取鍵值)
+   * @returns {Object|null} 價格資料物件或 null
+   */
+  processTWSEData(json, stockCode) {
+    const cacheKey = `twse_${stockCode}`;
+
+    if (json && json.data && json.data.length > 0) {
+      // TWSE 回傳的是當日或最近交易日的資料
+      const lastRow = json.data[json.data.length - 1];
+      Logger.log("TWSE Last Row: " + JSON.stringify(lastRow));
+
+      // TWSE 資料欄位：["日期", "成交股數", "成交金額", "開盤價", "最高價", "最低價", "收盤價", "漲跌價", "成交筆數"]
+      const priceData = {
+        currentPrice: parseFloat(lastRow[6].replace(/,/g, "")), // 收盤價 (index 6)
+        previousClose: parseFloat(lastRow[3].replace(/,/g, "")), // 開盤價作為昨收參考 (index 3)
+        openPrice: parseFloat(lastRow[3].replace(/,/g, "")), // 開盤價 (index 3)
+        highPrice: parseFloat(lastRow[4].replace(/,/g, "")), // 最高價 (index 4)
+        lowPrice: parseFloat(lastRow[5].replace(/,/g, "")), // 最低價 (index 5)
+        volume: parseInt(lastRow[1].replace(/,/g, "")), // 成交量 (index 1)
+        change: parseFloat(lastRow[7].replace(/,/g, "")) // 漲跌價 (index 7)
+      };
+
+      // 驗證資料完整性
+      if (isNaN(priceData.currentPrice) || priceData.currentPrice <= 0) {
+        Logger.log("TWSE 價格資料無效: " + priceData.currentPrice);
+        return null;
+      }
+
+      Logger.log("TWSE 成功取得資料: " + JSON.stringify(priceData));
+      cacheManager.set(cacheKey, priceData);
+      return priceData;
+    }
+
+    Logger.log("TWSE 無資料或資料格式錯誤");
+    return null;
   }
 
   /**
@@ -180,12 +221,25 @@ class StockPriceService {
           });
 
           const responseCode = response.getResponseCode();
-          if (responseCode !== 200) {
-            Logger.log(`TWSE ${dateStr} API 錯誤: ${responseCode}`);
-            continue;
-          }
 
-          const json = JSON.parse(response.getContentText());
+          // 處理重新導向
+          let json = null;
+          if (responseCode === 307) {
+            const redirectUrl = response.getHeaders()['Location'] || response.getHeaders()['location'];
+            if (redirectUrl) {
+              const redirectResponse = UrlFetchApp.fetch(redirectUrl, {
+                muteHttpExceptions: true,
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+              });
+              if (redirectResponse.getResponseCode() === 200) {
+                json = JSON.parse(redirectResponse.getContentText());
+              }
+            }
+          } else if (responseCode === 200) {
+            json = JSON.parse(response.getContentText());
+          }
 
           if (json && json.data && json.data.length > 0) {
             const lastRow = json.data[json.data.length - 1];
