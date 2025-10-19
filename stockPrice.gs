@@ -287,6 +287,77 @@ class StockPriceService {
   }
 
   /**
+   * 同步版本：取得 TWSE 歷史價格資料（給 Google Sheets 公式使用）
+   * @param {string} stockCode - 股票代號
+   * @param {number} days - 歷史天數 (預設 30)
+   * @returns {Array} 歷史價格陣列
+   */
+  getTWSEHistorySync(stockCode, days = 30) {
+    const cacheKey = `twse_history_${stockCode}_${days}`;
+    const cached = cacheManager.get(cacheKey);
+    if (cached !== null) return cached;
+
+    try {
+      const prices = [];
+      const endDate = new Date();
+
+      Logger.log("同步取得 TWSE 歷史資料: " + stockCode + ", 天數: " + days);
+
+      // 取得過去 N 天的資料 (限制最多 7 天，避免過多 API 呼叫)
+      const actualDays = Math.min(days, 7);
+
+      for (let i = 0; i < actualDays; i++) {
+        const targetDate = new Date(endDate);
+        targetDate.setDate(endDate.getDate() - i);
+
+        // 跳過週末
+        if (targetDate.getDay() === 0 || targetDate.getDay() === 6) {
+          continue;
+        }
+
+        const dateStr = Utilities.formatDate(targetDate, "GMT+8", "yyyyMMdd");
+        const url = `${this.twseBaseUrl}/exchangeReport/STOCK_DAY?response=json&date=${dateStr}&stockNo=${stockCode}`;
+
+        try {
+          const response = UrlFetchApp.fetch(url, {
+            muteHttpExceptions: true,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+          });
+
+          const responseCode = response.getResponseCode();
+
+          if (responseCode === 200) {
+            const json = JSON.parse(response.getContentText());
+            if (json && json.data && json.data.length > 0) {
+              const lastRow = json.data[json.data.length - 1];
+              const closePrice = parseFloat(lastRow[6].replace(/,/g, ""));
+              if (!isNaN(closePrice) && closePrice > 0) {
+                prices.unshift(closePrice); // 從舊到新排序
+                Logger.log(`TWSE ${dateStr}: ${closePrice}`);
+              }
+            }
+          }
+        } catch (dayError) {
+          Logger.log(`同步取得 ${dateStr} 資料時發生錯誤: ${dayError}`);
+        }
+
+        // API 呼叫間隔，避免過度頻繁
+        Utilities.sleep(100);
+      }
+
+      Logger.log("TWSE 同步歷史資料取得完成，共 " + prices.length + " 筆資料");
+      cacheManager.set(cacheKey, prices);
+      return prices;
+
+    } catch (e) {
+      Logger.log("TWSE 同步歷史資料錯誤: " + e);
+      return [];
+    }
+  }
+
+  /**
    * 取得 TPEX 股價和完整指標
    * @param {string} stockCode - 股票代號
    * @returns {Promise<Object|null>} 價格指標物件或 null
@@ -645,6 +716,67 @@ class StockPriceService {
   }
 
   /**
+   * 同步版本：取得美股歷史價格資料（給 Google Sheets 公式使用）
+   * @param {string} stockCode - 股票代號
+   * @param {number} days - 歷史天數 (預設 30)
+   * @returns {Array} 歷史價格陣列
+   */
+  getUSHistorySync(stockCode, days = 30) {
+    const cacheKey = `us_history_${stockCode}_${days}`;
+    const cached = cacheManager.get(cacheKey);
+    if (cached !== null) return cached;
+
+    try {
+      Logger.log("同步取得美股歷史資料: " + stockCode + ", 天數: " + days);
+
+      // 計算日期範圍 (限制最多 7 天)
+      const endDate = Math.floor(Date.now() / 1000); // Unix timestamp
+      const startDate = endDate - (Math.min(days, 7) * 24 * 60 * 60); // N 天前
+
+      const url = `${this.yahooBaseUrl}/v8/finance/chart/${stockCode}?period1=${startDate}&period2=${endDate}&interval=1d`;
+
+      Logger.log("Yahoo History URL: " + url);
+
+      const response = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      const responseCode = response.getResponseCode();
+      Logger.log("Yahoo History Response Code: " + responseCode);
+
+      if (responseCode !== 200) {
+        Logger.log("Yahoo History API 錯誤: " + responseCode);
+        return [];
+      }
+
+      const json = JSON.parse(response.getContentText());
+
+      if (json && json.chart && json.chart.result && json.chart.result[0]) {
+        const result = json.chart.result[0];
+        if (result.indicators && result.indicators.quote && result.indicators.quote[0]) {
+          const quotes = result.indicators.quote[0];
+          const closes = quotes.close || [];
+
+          // 過濾有效的價格資料
+          const validPrices = closes.filter(price => price !== null && !isNaN(price) && price > 0);
+          Logger.log("Yahoo 同步歷史資料取得完成，共 " + validPrices.length + " 筆資料");
+          cacheManager.set(cacheKey, validPrices);
+          return validPrices;
+        }
+      }
+
+      Logger.log("Yahoo 同步歷史資料格式錯誤或無資料");
+      return [];
+    } catch (e) {
+      Logger.log("Yahoo Finance 同步歷史資料錯誤: " + e);
+      return [];
+    }
+  }
+
+  /**
    * 根據股票代號判斷市場類型並取得價格和完整指標
    * @param {string} stockCode - 股票代號
    * @returns {Promise<Object|null>} 價格指標物件或 null
@@ -882,6 +1014,30 @@ class StockPriceService {
     } else {
       // 美股
       return await this.getUSHistory(stockCode, days);
+    }
+  }
+
+  /**
+   * 同步版本：取得歷史價格資料（給 Google Sheets 公式使用）
+   * @param {string} stockCode - 股票代號
+   * @param {number} days - 歷史天數 (預設 30)
+   * @returns {Array} 歷史價格陣列
+   */
+  getHistorySync(stockCode, days = 30) {
+    if (!stockCode || typeof stockCode !== 'string') return [];
+
+    stockCode = stockCode.trim();
+
+    // 判斷市場類型並呼叫對應的歷史資料方法
+    if (this.isListedStock(stockCode)) {
+      return this.getTWSEHistorySync(stockCode, days);
+    } else if (this.isOTCStock(stockCode)) {
+      // TPEX 歷史資料可以使用類似的邏輯，暫時回傳空陣列
+      Logger.log("TPEX 歷史資料功能尚未實作");
+      return [];
+    } else {
+      // 美股
+      return this.getUSHistorySync(stockCode, days);
     }
   }
 
@@ -1237,9 +1393,9 @@ function GETPREVIOUSCLOSE(stockCode) {
   if (!stockCode) return "無代號";
 
   try {
-    const priceData = stockPriceService.getPrice(stockCode);
+    const priceData = stockPriceService.getPriceSync(stockCode);
 
-    if (priceData !== null && priceData.previousClose !== null) {
+    if (priceData !== null && priceData.previousClose !== null && priceData.previousClose !== undefined && !isNaN(priceData.previousClose)) {
       return priceData.previousClose;
     } else {
       return "無資料";
@@ -1263,9 +1419,9 @@ function GETOPENPRICE(stockCode) {
   if (!stockCode) return "無代號";
 
   try {
-    const priceData = stockPriceService.getPrice(stockCode);
+    const priceData = stockPriceService.getPriceSync(stockCode);
 
-    if (priceData !== null && priceData.openPrice !== null) {
+    if (priceData !== null && priceData.openPrice !== null && priceData.openPrice !== undefined && !isNaN(priceData.openPrice)) {
       return priceData.openPrice;
     } else {
       return "無資料";
@@ -1289,9 +1445,9 @@ function GETHIGHPRICE(stockCode) {
   if (!stockCode) return "無代號";
 
   try {
-    const priceData = stockPriceService.getPrice(stockCode);
+    const priceData = stockPriceService.getPriceSync(stockCode);
 
-    if (priceData !== null && priceData.highPrice !== null) {
+    if (priceData !== null && priceData.highPrice !== null && priceData.highPrice !== undefined && !isNaN(priceData.highPrice)) {
       return priceData.highPrice;
     } else {
       return "無資料";
@@ -1315,9 +1471,9 @@ function GETLOWPRICE(stockCode) {
   if (!stockCode) return "無代號";
 
   try {
-    const priceData = stockPriceService.getPrice(stockCode);
+    const priceData = stockPriceService.getPriceSync(stockCode);
 
-    if (priceData !== null && priceData.lowPrice !== null) {
+    if (priceData !== null && priceData.lowPrice !== null && priceData.lowPrice !== undefined && !isNaN(priceData.lowPrice)) {
       return priceData.lowPrice;
     } else {
       return "無資料";
@@ -1347,7 +1503,7 @@ function GETSPARKLINE(stockCode, days = 30) {
 
     // 使用同步方式取得歷史資料（Google Sheets 公式限制）
     // 注意：Google Sheets 公式不能使用 async/await
-    const history = stockPriceService.getHistory(stockCode, validDays);
+    const history = stockPriceService.getHistorySync(stockCode, validDays);
 
     if (history && history.length > 0) {
       Logger.log("GETSPARKLINE 成功取得歷史資料: " + history.length + " 筆資料");
