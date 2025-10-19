@@ -1125,7 +1125,7 @@ function updateSingleStock() {
       // 取得價格資料
       const priceData = stockPriceService.getPrice(stockCode.toString().trim());
 
-      if (priceData !== null) {
+      if (priceData !== null && priceData.currentPrice !== null && priceData.currentPrice !== undefined) {
         // 更新價格指標
         sheet.getRange(rowIndex, 4).setValue(priceData.currentPrice); // 即時股價
         if (priceData.previousClose !== null) {
@@ -1158,9 +1158,7 @@ function updateSingleStock() {
         const duration = Math.round((endTime - startTime) / 1000);
 
         // 顯示成功訊息
-        const priceDisplay = priceData.currentPrice !== null && priceData.currentPrice !== undefined ?
-          priceData.currentPrice.toString() : '無法取得';
-        ui.alert('更新成功', `股票 ${stockCode} 更新完成！\n耗時: ${duration} 秒\n\n即時價格: ${priceDisplay}`, ui.ButtonSet.OK);
+        ui.alert('更新成功', `股票 ${stockCode} 更新完成！\n耗時: ${duration} 秒\n\n即時價格: ${priceData.currentPrice}`, ui.ButtonSet.OK);
 
       } else {
         ui.alert('更新失敗', `無法取得股票 ${stockCode} 的價格資料。\n請檢查股票代號是否正確，或查看應用程式記錄以取得詳細資訊。`, ui.ButtonSet.OK);
