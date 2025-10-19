@@ -585,27 +585,35 @@ class GoogleSheetsService {
    * @param {string} stockCode - 股票代號
    */
   ensureFormulas(sheet, rowIndex, stockCode) {
+    Logger.log(`確保公式 for row ${rowIndex}, stock ${stockCode}`);
+
     // 檢查並重新設定走勢圖公式
     const sparklineCell = sheet.getRange(rowIndex, 3);
     const currentSparkline = sparklineCell.getFormula();
+    Logger.log(`走勢圖公式檢查: ${currentSparkline}`);
     if (!currentSparkline || !currentSparkline.includes('GETSPARKLINE')) {
+      Logger.log(`重新設定走勢圖公式: =GETSPARKLINE(A${rowIndex})`);
       sparklineCell.setFormula(`=GETSPARKLINE(A${rowIndex})`);
     }
 
     // 檢查並重新設定價格指標公式
     const priceCells = [
-      { col: 4, formula: `=TWSTOCKPRICE(A${rowIndex})` },
-      { col: 5, formula: `=GETPREVIOUSCLOSE(A${rowIndex})` },
-      { col: 6, formula: `=GETOPENPRICE(A${rowIndex})` },
-      { col: 7, formula: `=GETHIGHPRICE(A${rowIndex})` },
-      { col: 8, formula: `=GETLOWPRICE(A${rowIndex})` }
+      { col: 4, name: 'TWSTOCKPRICE', formula: `=TWSTOCKPRICE(A${rowIndex})` },
+      { col: 5, name: 'GETPREVIOUSCLOSE', formula: `=GETPREVIOUSCLOSE(A${rowIndex})` },
+      { col: 6, name: 'GETOPENPRICE', formula: `=GETOPENPRICE(A${rowIndex})` },
+      { col: 7, name: 'GETHIGHPRICE', formula: `=GETHIGHPRICE(A${rowIndex})` },
+      { col: 8, name: 'GETLOWPRICE', formula: `=GETLOWPRICE(A${rowIndex})` }
     ];
 
-    priceCells.forEach(({ col, formula }) => {
+    priceCells.forEach(({ col, name, formula }) => {
       const cell = sheet.getRange(rowIndex, col);
       const currentFormula = cell.getFormula();
-      // 如果是數值或空值，重新設定公式
+      const cellValue = cell.getValue();
+      Logger.log(`${name} 檢查 - 公式: "${currentFormula}", 值: "${cellValue}"`);
+
+      // 如果沒有公式（被數值覆蓋），重新設定公式
       if (!currentFormula || currentFormula === '') {
+        Logger.log(`重新設定 ${name} 公式: ${formula}`);
         cell.setFormula(formula);
       }
     });
