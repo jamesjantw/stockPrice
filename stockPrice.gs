@@ -1554,7 +1554,7 @@ function updateAllPrices() {
         }
 
         // 直接呼叫同步方法，避免 async/await 問題
-        const priceData = stockPriceService.getPrice(stock.code);
+        const priceData = stockPriceService.getPriceSync(stock.code);
 
         if (priceData !== null) {
           // 收集更新資料，準備批次更新
@@ -1738,8 +1738,8 @@ function updateSingleStock() {
     try {
       ui.alert('開始更新', `正在更新股票 ${stockCode} 的價格資料...`, ui.ButtonSet.OK);
 
-      // 取得價格資料
-      const priceData = stockPriceService.getPrice(stockCode.toString().trim());
+      // 取得價格資料 (使用同步版本，因為 Google Sheets 公式不能用 async)
+      const priceData = stockPriceService.getPriceSync(stockCode.toString().trim());
 
       if (priceData !== null && priceData.currentPrice !== null && priceData.currentPrice !== undefined) {
         // 更新價格指標
@@ -1825,8 +1825,8 @@ function updateSingleStockWithProgress(stockCode, rowIndex) {
 
     const sheet = SpreadsheetApp.getActiveSheet();
 
-    // 取得價格資料
-    const priceData = stockPriceService.getPrice(stockCode);
+    // 取得價格資料 (使用同步版本)
+    const priceData = stockPriceService.getPriceSync(stockCode);
 
     if (priceData !== null && priceData.currentPrice !== null && priceData.currentPrice !== undefined) {
       // 更新價格指標

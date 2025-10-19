@@ -22,6 +22,7 @@
 *   **註解** 請加上 日期 agent人員 story task
 *   **OS環境** Windows
 *   **所有 Agent 角色** 請參考 docs/architecture/definition-of-done.md 理解 & align 相關定義
+*   小單元修改完，應進行單元測試，確認修改邏輯沒有問題，修改的部分可以正常運作
 *   **處理方式與結果** 請詳實記錄 並更新文件狀態
 
 ---

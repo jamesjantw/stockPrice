@@ -1,0 +1,29 @@
+*pm 我這個專案是 Google App Script  專案  
+-主要是將美國與台灣的股價即時抓取 並呈獻在 Google sheets 中
+-我在 docs/stockPrice.csv 定義了基本格式  輸入股票代號 股票名稱  就可以帶出  過去 30 天(天數可以自行調整) 股價走勢圖 (sparkline) 即時股價 
+-同時我想加入 昨日收盤價 開盤價 最高價 最低價 還有其他您建議可以加入的
+-請幫我規劃並設計可以在 google sheets 上分享給其他人 同時可以自己新增股票代號
+
+*po 請 approve 此需求
+-請更新 README.md
+-每次更新前先用 read_file 讀取最新內容
+-確保了解當前文件的完整狀態
+-避免基於過時的記憶進行更新
+-將審核後的結果記錄於文件中 
+-更新 change log 
+-更新文件狀態
+-完成後請切換至 code 模式 git commit & push
+
+*sm 請依MVP 方式進行 完成一個工作階段即可以看到即時成果
+-每次更新前先用 read_file 讀取最新內容
+-確保了解當前文件的完整狀態
+-避免基於過時的記憶進行更新
+-將審核後的結果記錄於文件中 
+-更新 change log 
+-更新文件狀態
+
+*dev 請開始開發
+-開始前請先閱讀 docs/architecture/coding-standards.md 
+-每一個工作階段完成 請更新文件記錄過程與完成事項
+-更新 change log 
+-更新文件狀態
