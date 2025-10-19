@@ -1540,10 +1540,7 @@ function updateAllPrices() {
     let errorCount = 0;
     const errors = [];
 
-    // 效能優化：批次更新資料而不是逐個儲存格更新
-    const updates = [];
-
-    // 更新價格和指標（使用同步方式，因為 Apps Script 限制）
+    // 更新策略：只更新時間戳，強制重新計算公式，避免覆蓋公式
     for (let i = 0; i < stocks.length; i++) {
       const stock = stocks[i];
 
@@ -1553,84 +1550,39 @@ function updateAllPrices() {
           SpreadsheetApp.getUi().alert(`正在更新股票 ${i + 1}/${stocks.length}...\n目前成功: ${successCount}, 失敗: ${errorCount}`);
         }
 
-        // 直接呼叫同步方法，避免 async/await 問題
+        // 驗證股票代號是否能取得資料
         const priceData = stockPriceService.getPriceSync(stock.code);
 
-        if (priceData !== null) {
-          // 收集更新資料，準備批次更新
-          updates.push({
-            rowIndex: stock.rowIndex,
-            data: [
-              priceData.currentPrice, // D 欄 - 即時股價
-              priceData.previousClose || "無資料", // E 欄 - 昨日收盤
-              priceData.openPrice || "無資料", // F 欄 - 開盤價
-              priceData.highPrice || "無資料", // G 欄 - 最高價
-              priceData.lowPrice || "無資料", // H 欄 - 最低價
-              Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss") // I 欄 - 更新時間
-            ]
-          });
-
+        if (priceData !== null && priceData.currentPrice !== null) {
           successCount++;
+          Logger.log(`股票 ${stock.code} 資料驗證成功`);
         } else {
-          // 收集錯誤資料
-          updates.push({
-            rowIndex: stock.rowIndex,
-            data: [
-              "無資料", // D 欄
-              "無資料", // E 欄
-              "無資料", // F 欄
-              "無資料", // G 欄
-              "無資料", // H 欄
-              Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss") // I 欄
-            ]
-          });
-
           errorCount++;
-          errors.push(`${stock.code}: 無資料`);
+          errors.push(`${stock.code}: 無法取得資料`);
+          Logger.log(`股票 ${stock.code} 資料驗證失敗`);
         }
 
-        // API 呼叫間隔（縮短到 100ms 以提升速度）
+        // 只更新時間戳欄位（I 欄），避免覆蓋公式
+        const timestamp = Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss");
+        sheet.getRange(stock.rowIndex, 9).setValue(timestamp);
+
+        // API 呼叫間隔
         Utilities.sleep(100);
 
       } catch (e) {
         Logger.log(`更新股票 ${stock.code} 時發生錯誤: ${e}`);
-
-        // 收集錯誤資料
-        updates.push({
-          rowIndex: stock.rowIndex,
-          data: [
-            "錯誤", // D 欄
-            "錯誤", // E 欄
-            "錯誤", // F 欄
-            "錯誤", // G 欄
-            "錯誤", // H 欄
-            Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss") // I 欄
-          ]
-        });
-
         errorCount++;
         errors.push(`${stock.code}: ${e.toString()}`);
+
+        // 即使出錯也要更新時間戳
+        const timestamp = Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss");
+        sheet.getRange(stock.rowIndex, 9).setValue(timestamp);
       }
     }
 
-    // 批次更新所有資料（大幅提升效能）
-    if (updates.length > 0) {
-      // 將更新資料轉換為二維陣列
-      const updateRanges = [];
-      const updateValues = [];
-
-      updates.forEach(update => {
-        updateRanges.push(sheet.getRange(update.rowIndex, 4, 1, 6)); // D 到 I 欄
-        updateValues.push(update.data);
-      });
-
-      // 批次設定值
-      for (let i = 0; i < updateRanges.length; i++) {
-        updateRanges[i].setValues([updateValues[i]]);
-      }
-
-      Logger.log(`批次更新完成，共更新 ${updates.length} 筆資料`);
-    }
+    // 強制重新計算所有公式
+    SpreadsheetApp.flush();
+    Logger.log("已強制重新計算所有公式");
 
     // 確保所有公式都存在（僅在更新完成後執行一次）
     stocks.forEach(stock => {
@@ -1738,26 +1690,11 @@ function updateSingleStock() {
     try {
       ui.alert('開始更新', `正在更新股票 ${stockCode} 的價格資料...`, ui.ButtonSet.OK);
 
-      // 取得價格資料 (使用同步版本，因為 Google Sheets 公式不能用 async)
+      // 驗證股票代號是否能取得資料
       const priceData = stockPriceService.getPriceSync(stockCode.toString().trim());
 
       if (priceData !== null && priceData.currentPrice !== null && priceData.currentPrice !== undefined) {
-        // 更新價格指標
-        sheet.getRange(rowIndex, 4).setValue(priceData.currentPrice); // 即時股價
-        if (priceData.previousClose !== null) {
-          sheet.getRange(rowIndex, 5).setValue(priceData.previousClose); // 昨日收盤
-        }
-        if (priceData.openPrice !== null) {
-          sheet.getRange(rowIndex, 6).setValue(priceData.openPrice); // 開盤價
-        }
-        if (priceData.highPrice !== null) {
-          sheet.getRange(rowIndex, 7).setValue(priceData.highPrice); // 最高價
-        }
-        if (priceData.lowPrice !== null) {
-          sheet.getRange(rowIndex, 8).setValue(priceData.lowPrice); // 最低價
-        }
-
-        // 更新時間戳
+        // 只更新時間戳，強制重新計算公式
         sheet.getRange(rowIndex, 9).setValue(
           Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")
         );
@@ -1766,8 +1703,8 @@ function updateSingleStock() {
         const sheetsService = new GoogleSheetsService();
         sheetsService.ensureFormulas(sheet, rowIndex, stockCode.toString().trim());
 
-        // 重新整理試算表
-        sheetsService.refreshSheet(sheet);
+        // 強制重新計算
+        SpreadsheetApp.flush();
 
         // 計算耗時
         const endTime = new Date();
@@ -1825,26 +1762,11 @@ function updateSingleStockWithProgress(stockCode, rowIndex) {
 
     const sheet = SpreadsheetApp.getActiveSheet();
 
-    // 取得價格資料 (使用同步版本)
+    // 驗證股票代號是否能取得資料
     const priceData = stockPriceService.getPriceSync(stockCode);
 
     if (priceData !== null && priceData.currentPrice !== null && priceData.currentPrice !== undefined) {
-      // 更新價格指標
-      sheet.getRange(rowIndex, 4).setValue(priceData.currentPrice); // 即時股價
-      if (priceData.previousClose !== null) {
-        sheet.getRange(rowIndex, 5).setValue(priceData.previousClose); // 昨日收盤
-      }
-      if (priceData.openPrice !== null) {
-        sheet.getRange(rowIndex, 6).setValue(priceData.openPrice); // 開盤價
-      }
-      if (priceData.highPrice !== null) {
-        sheet.getRange(rowIndex, 7).setValue(priceData.highPrice); // 最高價
-      }
-      if (priceData.lowPrice !== null) {
-        sheet.getRange(rowIndex, 8).setValue(priceData.lowPrice); // 最低價
-      }
-
-      // 更新時間戳
+      // 只更新時間戳，強制重新計算公式
       sheet.getRange(rowIndex, 9).setValue(
         Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")
       );
@@ -1853,8 +1775,8 @@ function updateSingleStockWithProgress(stockCode, rowIndex) {
       const sheetsService = new GoogleSheetsService();
       sheetsService.ensureFormulas(sheet, rowIndex, stockCode);
 
-      // 重新整理試算表
-      sheetsService.refreshSheet(sheet);
+      // 強制重新計算
+      SpreadsheetApp.flush();
 
       // 計算耗時
       const endTime = new Date();
