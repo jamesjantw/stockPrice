@@ -1082,7 +1082,7 @@ function onOpen() {
 }
 
 /**
- * 更新單支股票的自訂選單函數（含進度條）
+ * 更新單支股票的自訂選單函數（簡化版，避免 TransportError）
  */
 function updateSingleStock() {
   try {
@@ -1116,8 +1116,58 @@ function updateSingleStock() {
 
     if (confirmResult !== ui.Button.YES) return;
 
-    // 顯示進度條
-    showSingleStockProgress(stockCode.toString().trim(), stockName || '未命名', rowIndex);
+    // 直接執行更新（不使用 HTML 對話框，避免 TransportError）
+    const startTime = new Date();
+
+    try {
+      ui.alert('開始更新', `正在更新股票 ${stockCode} 的價格資料...`, ui.ButtonSet.OK);
+
+      // 取得價格資料
+      const priceData = stockPriceService.getPrice(stockCode.toString().trim());
+
+      if (priceData !== null) {
+        // 更新價格指標
+        sheet.getRange(rowIndex, 4).setValue(priceData.currentPrice); // 即時股價
+        if (priceData.previousClose !== null) {
+          sheet.getRange(rowIndex, 5).setValue(priceData.previousClose); // 昨日收盤
+        }
+        if (priceData.openPrice !== null) {
+          sheet.getRange(rowIndex, 6).setValue(priceData.openPrice); // 開盤價
+        }
+        if (priceData.highPrice !== null) {
+          sheet.getRange(rowIndex, 7).setValue(priceData.highPrice); // 最高價
+        }
+        if (priceData.lowPrice !== null) {
+          sheet.getRange(rowIndex, 8).setValue(priceData.lowPrice); // 最低價
+        }
+
+        // 更新時間戳
+        sheet.getRange(rowIndex, 9).setValue(
+          Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")
+        );
+
+        // 確保公式存在
+        const sheetsService = new GoogleSheetsService();
+        sheetsService.ensureFormulas(sheet, rowIndex, stockCode.toString().trim());
+
+        // 重新整理試算表
+        sheetsService.refreshSheet(sheet);
+
+        // 計算耗時
+        const endTime = new Date();
+        const duration = Math.round((endTime - startTime) / 1000);
+
+        // 顯示成功訊息
+        ui.alert('更新成功', `股票 ${stockCode} 更新完成！\n耗時: ${duration} 秒\n\n價格: ${priceData.currentPrice}`, ui.ButtonSet.OK);
+
+      } else {
+        ui.alert('更新失敗', `無法取得股票 ${stockCode} 的價格資料。\n請檢查股票代號是否正確，或查看應用程式記錄以取得詳細資訊。`, ui.ButtonSet.OK);
+      }
+
+    } catch (updateError) {
+      Logger.log(`更新單支股票 ${stockCode} 錯誤: ${updateError}`);
+      ui.alert('更新錯誤', `更新股票 ${stockCode} 時發生錯誤：${updateError.toString()}`, ui.ButtonSet.OK);
+    }
 
   } catch (e) {
     Logger.log('updateSingleStock 錯誤: ' + e);
