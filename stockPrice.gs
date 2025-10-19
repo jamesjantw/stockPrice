@@ -1534,21 +1534,21 @@ function updateAllPrices() {
 
     // 顯示開始訊息
     const startTime = new Date();
-    SpreadsheetApp.getUi().alert(`開始更新 ${stocks.length} 支股票的價格...\n\n預計需要約 ${Math.ceil(stocks.length * 0.2)} 秒`);
+    SpreadsheetApp.getUi().alert(`開始更新 ${stocks.length} 支股票的價格...`);
 
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
 
-    // 更新策略：只更新時間戳，強制重新計算公式，避免覆蓋公式
+    // 更新策略：清除快取並強制重新計算公式
     for (let i = 0; i < stocks.length; i++) {
       const stock = stocks[i];
 
       try {
-        // 顯示進度（每10支股票顯示一次）
-        if ((i + 1) % 10 === 0 || i === 0) {
-          SpreadsheetApp.getUi().alert(`正在更新股票 ${i + 1}/${stocks.length}...\n目前成功: ${successCount}, 失敗: ${errorCount}`);
-        }
+        // 清除此股票的快取，強制重新取得資料
+        cacheManager.cache[`twse_${stock.code}`] = undefined;
+        cacheManager.cache[`tpex_${stock.code}`] = undefined;
+        cacheManager.cache[`us_${stock.code}`] = undefined;
 
         // 驗證股票代號是否能取得資料
         const priceData = stockPriceService.getPriceSync(stock.code);
@@ -1562,7 +1562,7 @@ function updateAllPrices() {
           Logger.log(`股票 ${stock.code} 資料驗證失敗`);
         }
 
-        // 只更新時間戳欄位（I 欄），避免覆蓋公式
+        // 只更新時間戳欄位（I 欄），觸發重新計算
         const timestamp = Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss");
         sheet.getRange(stock.rowIndex, 9).setValue(timestamp);
 
