@@ -1007,7 +1007,7 @@ function TWSTOCKPRICE(stockCode) {
     // 這裡直接呼叫同步版本
     const priceData = stockPriceService.getPrice(stockCode);
 
-    if (priceData !== null && priceData.currentPrice !== null) {
+    if (priceData && priceData.currentPrice !== null && priceData.currentPrice !== undefined && !isNaN(priceData.currentPrice)) {
       return priceData.currentPrice;
     } else {
       return "無資料";
