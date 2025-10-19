@@ -650,11 +650,11 @@ const dataProcessingService = new DataProcessingService();
 // ========== 公開函數 ==========
 
 /**
- * 主要的股價查詢函數
+ * 主要的股價查詢函數 - 取得即時股價
  * 使用方式：
- * =TWSTOCKPRICE("2330") -> 台股上市股票
- * =TWSTOCKPRICE("6104") -> 台股上櫃股票
- * =TWSTOCKPRICE("AAPL") -> 美股
+ * =TWSTOCKPRICE("2330") -> 台股上市股票即時價
+ * =TWSTOCKPRICE("6104") -> 台股上櫃股票即時價
+ * =TWSTOCKPRICE("AAPL") -> 美股即時價
  *
  * 系統會自動判斷市場類型：
  * - 4碼數字：台股上市 (TWSE)
@@ -680,6 +680,110 @@ function TWSTOCKPRICE(stockCode) {
     }
   } catch (e) {
     Logger.log("TWSTOCKPRICE 錯誤: " + e);
+    return "錯誤";
+  }
+}
+
+/**
+ * 取得昨日收盤價
+ * 使用方式：
+ * =GETPREVIOUSCLOSE("2330") -> 昨日收盤價
+ * =GETPREVIOUSCLOSE("AAPL") -> 美股昨日收盤價
+ *
+ * @param {string} stockCode - 股票代號
+ * @returns {number|string} 昨日收盤價或錯誤訊息
+ */
+function GETPREVIOUSCLOSE(stockCode) {
+  if (!stockCode) return "無代號";
+
+  try {
+    const priceData = stockPriceService.getPrice(stockCode);
+
+    if (priceData !== null && priceData.previousClose !== null) {
+      return priceData.previousClose;
+    } else {
+      return "無資料";
+    }
+  } catch (e) {
+    Logger.log("GETPREVIOUSCLOSE 錯誤: " + e);
+    return "錯誤";
+  }
+}
+
+/**
+ * 取得開盤價
+ * 使用方式：
+ * =GETOPENPRICE("2330") -> 開盤價
+ * =GETOPENPRICE("AAPL") -> 美股開盤價
+ *
+ * @param {string} stockCode - 股票代號
+ * @returns {number|string} 開盤價或錯誤訊息
+ */
+function GETOPENPRICE(stockCode) {
+  if (!stockCode) return "無代號";
+
+  try {
+    const priceData = stockPriceService.getPrice(stockCode);
+
+    if (priceData !== null && priceData.openPrice !== null) {
+      return priceData.openPrice;
+    } else {
+      return "無資料";
+    }
+  } catch (e) {
+    Logger.log("GETOPENPRICE 錯誤: " + e);
+    return "錯誤";
+  }
+}
+
+/**
+ * 取得最高價
+ * 使用方式：
+ * =GETHIGHPRICE("2330") -> 最高價
+ * =GETHIGHPRICE("AAPL") -> 美股最高價
+ *
+ * @param {string} stockCode - 股票代號
+ * @returns {number|string} 最高價或錯誤訊息
+ */
+function GETHIGHPRICE(stockCode) {
+  if (!stockCode) return "無代號";
+
+  try {
+    const priceData = stockPriceService.getPrice(stockCode);
+
+    if (priceData !== null && priceData.highPrice !== null) {
+      return priceData.highPrice;
+    } else {
+      return "無資料";
+    }
+  } catch (e) {
+    Logger.log("GETHIGHPRICE 錯誤: " + e);
+    return "錯誤";
+  }
+}
+
+/**
+ * 取得最低價
+ * 使用方式：
+ * =GETLOWPRICE("2330") -> 最低價
+ * =GETLOWPRICE("AAPL") -> 美股最低價
+ *
+ * @param {string} stockCode - 股票代號
+ * @returns {number|string} 最低價或錯誤訊息
+ */
+function GETLOWPRICE(stockCode) {
+  if (!stockCode) return "無代號";
+
+  try {
+    const priceData = stockPriceService.getPrice(stockCode);
+
+    if (priceData !== null && priceData.lowPrice !== null) {
+      return priceData.lowPrice;
+    } else {
+      return "無資料";
+    }
+  } catch (e) {
+    Logger.log("GETLOWPRICE 錯誤: " + e);
     return "錯誤";
   }
 }
