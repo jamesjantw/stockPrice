@@ -95,32 +95,47 @@ class StockPriceService {
 
       // 處理重新導向 (307 Temporary Redirect)
       if (responseCode === 307) {
-        const headers = response.getHeaders();
-        const redirectUrl = headers['Location'] || headers['location'];
-        Logger.log("TWSE 重新導向到: " + redirectUrl);
-        Logger.log("所有標頭: " + JSON.stringify(headers));
+        Logger.log("TWSE 回傳 307 重新導向，嘗試直接使用 followRedirects");
 
-        if (redirectUrl) {
-          // 重新發送請求到重新導向的 URL
-          const redirectResponse = UrlFetchApp.fetch(redirectUrl, {
+        // 使用 followRedirects: false 然後手動處理
+        try {
+          const redirectResponse = UrlFetchApp.fetch(url, {
             muteHttpExceptions: true,
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             },
-            followRedirects: true // 讓 Google Apps Script 自動處理重新導向
+            followRedirects: false // 不自動跟隨，讓我們手動處理
           });
 
-          const redirectCode = redirectResponse.getResponseCode();
-          Logger.log("重新導向回應碼: " + redirectCode);
+          // 如果還是 307，嘗試修改 URL 或使用不同的方法
+          Logger.log("TWSE 重新導向處理：嘗試修改請求參數");
 
-          if (redirectCode === 200) {
-            const redirectJsonText = redirectResponse.getContentText();
-            Logger.log("重新導向回應資料長度: " + redirectJsonText.length);
-            Logger.log("重新導向回應資料: " + redirectJsonText.substring(0, 200));
-            const json = JSON.parse(redirectJsonText);
-            // 使用重新導向的回應繼續處理
+          // 嘗試不包含日期參數，或使用不同的日期格式
+          const today = new Date();
+          const dateStr = Utilities.formatDate(today, "GMT+8", "yyyyMMdd");
+          const altUrl = `${this.twseBaseUrl}/exchangeReport/STOCK_DAY?response=json&stockNo=${stockCode}`;
+
+          Logger.log("嘗試替代 URL: " + altUrl);
+
+          const altResponse = UrlFetchApp.fetch(altUrl, {
+            muteHttpExceptions: true,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+          });
+
+          const altCode = altResponse.getResponseCode();
+          Logger.log("替代 URL 回應碼: " + altCode);
+
+          if (altCode === 200) {
+            const altJsonText = altResponse.getContentText();
+            Logger.log("替代 URL 回應資料長度: " + altJsonText.length);
+            const json = JSON.parse(altJsonText);
             return this.processTWSEData(json, stockCode);
           }
+
+        } catch (redirectError) {
+          Logger.log("重新導向處理錯誤: " + redirectError);
         }
 
         Logger.log("TWSE 重新導向處理失敗");
