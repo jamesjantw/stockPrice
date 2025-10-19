@@ -1158,7 +1158,9 @@ function updateSingleStock() {
         const duration = Math.round((endTime - startTime) / 1000);
 
         // 顯示成功訊息
-        ui.alert('更新成功', `股票 ${stockCode} 更新完成！\n耗時: ${duration} 秒\n\n價格: ${priceData.currentPrice}`, ui.ButtonSet.OK);
+        const priceDisplay = priceData.currentPrice !== null && priceData.currentPrice !== undefined ?
+          priceData.currentPrice.toString() : '無法取得';
+        ui.alert('更新成功', `股票 ${stockCode} 更新完成！\n耗時: ${duration} 秒\n\n即時價格: ${priceDisplay}`, ui.ButtonSet.OK);
 
       } else {
         ui.alert('更新失敗', `無法取得股票 ${stockCode} 的價格資料。\n請檢查股票代號是否正確，或查看應用程式記錄以取得詳細資訊。`, ui.ButtonSet.OK);
