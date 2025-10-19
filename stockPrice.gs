@@ -1209,13 +1209,13 @@ function showSingleStockProgress(stockCode, stockName, rowIndex) {
                 // 呼叫 Google Apps Script 函數
                 google.script.run
                   .withSuccessHandler(function(result) {
-                    if (result.success) {
+                    if (result && result.success) {
                       updateProgress(100, '更新成功！✓', true);
                       document.getElementById('details').textContent =
                         '股票 ' + result.stockCode + ' 更新完成！耗時: ' + result.duration + ' 秒';
                     } else {
                       updateProgress(100, '更新失敗 ✗', false);
-                      document.getElementById('details').textContent = '錯誤: ' + result.error;
+                      document.getElementById('details').textContent = '錯誤: ' + (result ? result.error : '未知錯誤');
                     }
                   })
                   .withFailureHandler(function(error) {
@@ -1256,6 +1256,9 @@ function updateSingleStockWithProgress(stockCode, rowIndex) {
 
     const sheet = SpreadsheetApp.getActiveSheet();
 
+    // 模擬進度更新（實際上是同步操作，但給用戶視覺回饋）
+    Utilities.sleep(500); // 給點時間讓進度條顯示
+
     // 取得價格資料
     const priceData = stockPriceService.getPrice(stockCode);
 
@@ -1293,17 +1296,20 @@ function updateSingleStockWithProgress(stockCode, rowIndex) {
 
       Logger.log(`單支股票 ${stockCode} 更新成功，耗時: ${duration} 秒`);
 
+      // 回傳成功結果
       return {
         success: true,
         stockCode: stockCode,
-        duration: duration
+        duration: duration,
+        message: `股票 ${stockCode} 更新完成`
       };
 
     } else {
       Logger.log(`無法取得股票 ${stockCode} 的價格資料`);
       return {
         success: false,
-        error: `無法取得股票 ${stockCode} 的價格資料`
+        error: `無法取得股票 ${stockCode} 的價格資料。請檢查股票代號是否正確。`,
+        stockCode: stockCode
       };
     }
 
@@ -1311,7 +1317,8 @@ function updateSingleStockWithProgress(stockCode, rowIndex) {
     Logger.log(`updateSingleStockWithProgress 錯誤 for ${stockCode}: ${e}`);
     return {
       success: false,
-      error: e.toString()
+      error: `系統錯誤：${e.toString()}`,
+      stockCode: stockCode
     };
   }
 }
