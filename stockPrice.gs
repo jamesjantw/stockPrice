@@ -159,8 +159,12 @@ class StockPriceService {
       const prices = [];
       const endDate = new Date();
 
-      // 取得過去 N 天的資料
-      for (let i = 0; i < days; i++) {
+      Logger.log("開始取得 TWSE 歷史資料: " + stockCode + ", 天數: " + days);
+
+      // 取得過去 N 天的資料 (限制最多 30 天，避免過多 API 呼叫)
+      const actualDays = Math.min(days, 30);
+
+      for (let i = 0; i < actualDays; i++) {
         const targetDate = new Date(endDate);
         targetDate.setDate(endDate.getDate() - i);
 
@@ -173,29 +177,40 @@ class StockPriceService {
         const url = `${this.twseBaseUrl}/exchangeReport/STOCK_DAY?response=json&date=${dateStr}&stockNo=${stockCode}`;
 
         try {
-          const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+          const response = UrlFetchApp.fetch(url, {
+            muteHttpExceptions: true,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+          });
+
+          const responseCode = response.getResponseCode();
+          if (responseCode !== 200) {
+            Logger.log(`TWSE ${dateStr} API 錯誤: ${responseCode}`);
+            continue;
+          }
+
           const json = JSON.parse(response.getContentText());
 
           if (json && json.data && json.data.length > 0) {
             const lastRow = json.data[json.data.length - 1];
             const closePrice = parseFloat(lastRow[6].replace(/,/g, ""));
-            if (!isNaN(closePrice)) {
+            if (!isNaN(closePrice) && closePrice > 0) {
               prices.unshift(closePrice); // 從舊到新排序
+              Logger.log(`TWSE ${dateStr}: ${closePrice}`);
             }
           }
         } catch (dayError) {
-          // 單日資料錯誤，繼續下一個日期
           Logger.log(`取得 ${dateStr} 資料時發生錯誤: ${dayError}`);
         }
 
         // API 呼叫間隔，避免過度頻繁
-        Utilities.sleep(100);
+        Utilities.sleep(200);
       }
 
-      // 只保留最近的有效價格
-      const validPrices = prices.slice(-days);
-      cacheManager.set(cacheKey, validPrices);
-      return validPrices;
+      Logger.log("TWSE 歷史資料取得完成，共 " + prices.length + " 筆資料");
+      cacheManager.set(cacheKey, prices);
+      return prices;
 
     } catch (e) {
       Logger.log("TWSE 歷史資料錯誤: " + e);
@@ -325,14 +340,35 @@ class StockPriceService {
     if (cached !== null) return cached;
 
     try {
-      // 計算日期範圍
+      Logger.log("開始取得美股歷史資料: " + stockCode + ", 天數: " + days);
+
+      // 計算日期範圍 (限制最多 30 天)
       const endDate = Math.floor(Date.now() / 1000); // Unix timestamp
-      const startDate = endDate - (days * 24 * 60 * 60); // N 天前
+      const startDate = endDate - (Math.min(days, 30) * 24 * 60 * 60); // N 天前
 
       const url = `${this.yahooBaseUrl}/v8/finance/chart/${stockCode}?period1=${startDate}&period2=${endDate}&interval=1d`;
 
-      const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-      const json = JSON.parse(response.getContentText());
+      Logger.log("Yahoo History URL: " + url);
+
+      const response = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      const responseCode = response.getResponseCode();
+      Logger.log("Yahoo History Response Code: " + responseCode);
+
+      if (responseCode !== 200) {
+        Logger.log("Yahoo History API 錯誤: " + responseCode);
+        return [];
+      }
+
+      const jsonText = response.getContentText();
+      Logger.log("Yahoo History Raw Response length: " + jsonText.length);
+
+      const json = JSON.parse(jsonText);
 
       if (json && json.chart && json.chart.result && json.chart.result[0]) {
         const result = json.chart.result[0];
@@ -341,12 +377,14 @@ class StockPriceService {
           const closes = quotes.close || [];
 
           // 過濾有效的價格資料
-          const validPrices = closes.filter(price => price !== null && !isNaN(price));
+          const validPrices = closes.filter(price => price !== null && !isNaN(price) && price > 0);
+          Logger.log("Yahoo 歷史資料取得完成，共 " + validPrices.length + " 筆資料");
           cacheManager.set(cacheKey, validPrices);
           return validPrices;
         }
       }
 
+      Logger.log("Yahoo 歷史資料格式錯誤或無資料");
       return [];
     } catch (e) {
       Logger.log("Yahoo Finance 歷史資料錯誤: " + e);
@@ -810,12 +848,14 @@ function GETSPARKLINE(stockCode, days = 30) {
     const history = stockPriceService.getHistory(stockCode, validDays);
 
     if (history && history.length > 0) {
+      Logger.log("GETSPARKLINE 成功取得歷史資料: " + history.length + " 筆資料");
       return dataProcessingService.generateSparkline(history);
     } else {
+      Logger.log("GETSPARKLINE 無歷史資料 for: " + stockCode);
       return "無歷史資料";
     }
   } catch (e) {
-    Logger.log("GETSPARKLINE 錯誤: " + e);
+    Logger.log("GETSPARKLINE 錯誤 for " + stockCode + ": " + e);
     return "錯誤";
   }
 }
