@@ -1078,6 +1078,7 @@ function onOpen() {
     .addItem('刪除股票', 'removeStock')
     .addSeparator()
     .addItem('顯示更新進度', 'showProgressDialog')
+    .addItem('執行完整測試', 'runFullTestSuite')
     .addToUi();
 }
 
@@ -1654,19 +1655,27 @@ function createSettingsSheet(spreadsheet) {
  * 測試函數 - 用於驗證基本功能
  */
 function testBasicFunctionality() {
-  Logger.log("測試 TWSTOCKPRICE 函數...");
+  Logger.log("=== 測試 TWSTOCKPRICE 函數 ===");
 
   // 測試台股
+  Logger.log("測試台股 2330 (台積電)...");
   const twsePrice = TWSTOCKPRICE("2330");
   Logger.log("台積電價格: " + twsePrice);
 
   // 測試上櫃
+  Logger.log("測試上櫃 6104 (創惟)...");
   const tpexPrice = TWSTOCKPRICE("6104");
   Logger.log("創惟價格: " + tpexPrice);
 
   // 測試美股
+  Logger.log("測試美股 AAPL (Apple)...");
   const usPrice = TWSTOCKPRICE("AAPL");
   Logger.log("Apple 價格: " + usPrice);
+
+  // 測試 TSLA
+  Logger.log("測試美股 TSLA (Tesla)...");
+  const tslaPrice = TWSTOCKPRICE("TSLA");
+  Logger.log("Tesla 價格: " + tslaPrice);
 
   Logger.log("基本功能測試完成");
 }
@@ -1756,10 +1765,129 @@ function runFullTestSuite() {
     Logger.log("--- 測試 5: 錯誤處理 ---");
     testErrorHandling();
 
+    // 測試 6: API 連線診斷
+    Logger.log("--- 測試 6: API 連線診斷 ---");
+    testApiConnectivity();
+
     Logger.log("=== 完整測試套件執行完成 ===");
 
   } catch (e) {
     Logger.log("測試套件執行錯誤: " + e);
+  }
+}
+
+/**
+ * API 連線診斷測試
+ */
+function testApiConnectivity() {
+  Logger.log("測試 API 連線診斷...");
+
+  try {
+    // 測試 TWSE API 連線
+    Logger.log("測試 TWSE API 連線...");
+    const twseTest = testTWSEConnection();
+    Logger.log("TWSE 連線測試結果: " + (twseTest ? "成功" : "失敗"));
+
+    // 測試 TPEX API 連線
+    Logger.log("測試 TPEX API 連線...");
+    const tpexTest = testTPEXConnection();
+    Logger.log("TPEX 連線測試結果: " + (tpexTest ? "成功" : "失敗"));
+
+    // 測試 Yahoo Finance API 連線
+    Logger.log("測試 Yahoo Finance API 連線...");
+    const yahooTest = testYahooConnection();
+    Logger.log("Yahoo Finance 連線測試結果: " + (yahooTest ? "成功" : "失敗"));
+
+    Logger.log("API 連線診斷測試完成");
+
+  } catch (e) {
+    Logger.log("API 連線診斷測試錯誤: " + e);
+  }
+}
+
+/**
+ * 測試 TWSE API 連線
+ */
+function testTWSEConnection() {
+  try {
+    const today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
+    const url = `https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=${today}&stockNo=2330`;
+
+    const response = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    const responseCode = response.getResponseCode();
+    Logger.log("TWSE 回應碼: " + responseCode);
+
+    if (responseCode === 200) {
+      const json = JSON.parse(response.getContentText());
+      Logger.log("TWSE 回應資料長度: " + response.getContentText().length);
+      return json && json.data && json.data.length > 0;
+    }
+
+    return false;
+  } catch (e) {
+    Logger.log("TWSE 連線測試錯誤: " + e);
+    return false;
+  }
+}
+
+/**
+ * 測試 TPEX API 連線
+ */
+function testTPEXConnection() {
+  try {
+    const url = `https://www.tpex.org.tw/openapi/v1/stock_info?stock_no=6104`;
+
+    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const responseCode = response.getResponseCode();
+    Logger.log("TPEX 回應碼: " + responseCode);
+
+    if (responseCode === 200) {
+      const json = JSON.parse(response.getContentText());
+      Logger.log("TPEX 回應資料長度: " + response.getContentText().length);
+      return json && json.data && json.data.length > 0;
+    }
+
+    return false;
+  } catch (e) {
+    Logger.log("TPEX 連線測試錯誤: " + e);
+    return false;
+  }
+}
+
+/**
+ * 測試 Yahoo Finance API 連線
+ */
+function testYahooConnection() {
+  try {
+    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=AAPL`;
+
+    const response = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json'
+      }
+    });
+
+    const responseCode = response.getResponseCode();
+    Logger.log("Yahoo 回應碼: " + responseCode);
+
+    if (responseCode === 200) {
+      const json = JSON.parse(response.getContentText());
+      Logger.log("Yahoo 回應資料長度: " + response.getContentText().length);
+      return json && json.quoteResponse && json.quoteResponse.result && json.quoteResponse.result.length > 0;
+    }
+
+    return false;
+  } catch (e) {
+    Logger.log("Yahoo 連線測試錯誤: " + e);
+    return false;
   }
 }
 
