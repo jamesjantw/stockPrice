@@ -95,8 +95,10 @@ class StockPriceService {
 
       // 處理重新導向 (307 Temporary Redirect)
       if (responseCode === 307) {
-        const redirectUrl = response.getHeaders()['Location'] || response.getHeaders()['location'];
+        const headers = response.getHeaders();
+        const redirectUrl = headers['Location'] || headers['location'];
         Logger.log("TWSE 重新導向到: " + redirectUrl);
+        Logger.log("所有標頭: " + JSON.stringify(headers));
 
         if (redirectUrl) {
           // 重新發送請求到重新導向的 URL
@@ -104,7 +106,8 @@ class StockPriceService {
             muteHttpExceptions: true,
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
+            },
+            followRedirects: true // 讓 Google Apps Script 自動處理重新導向
           });
 
           const redirectCode = redirectResponse.getResponseCode();
@@ -113,6 +116,7 @@ class StockPriceService {
           if (redirectCode === 200) {
             const redirectJsonText = redirectResponse.getContentText();
             Logger.log("重新導向回應資料長度: " + redirectJsonText.length);
+            Logger.log("重新導向回應資料: " + redirectJsonText.substring(0, 200));
             const json = JSON.parse(redirectJsonText);
             // 使用重新導向的回應繼續處理
             return this.processTWSEData(json, stockCode);
@@ -278,35 +282,99 @@ class StockPriceService {
     if (cached !== null) return cached;
 
     try {
-      const url = `${this.tpexBaseUrl}/openapi/v1/stock_info?stock_no=${stockCode}`;
+      Logger.log("開始取得 TPEX 資料: " + stockCode);
 
-      const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-      const json = JSON.parse(response.getContentText());
+      // 嘗試多個 TPEX API 端點
+      let result = null;
 
-      if (json && json.data && json.data.length > 0) {
-        const lastRow = json.data[json.data.length - 1];
-        const priceData = {
-          currentPrice: parseFloat(lastRow[2].replace(/,/g, "")), // 收盤價
-          previousClose: parseFloat(lastRow[8].replace(/,/g, "")), // 昨收價
-          openPrice: parseFloat(lastRow[4].replace(/,/g, "")), // 開盤價
-          highPrice: parseFloat(lastRow[5].replace(/,/g, "")), // 最高價
-          lowPrice: parseFloat(lastRow[6].replace(/,/g, "")), // 最低價
-          volume: parseInt(lastRow[3].replace(/,/g, "")), // 成交量
-          change: parseFloat(lastRow[2].replace(/,/g, "")) - parseFloat(lastRow[8].replace(/,/g, "")) // 漲跌價
-        };
-
-        // 驗證資料完整性
-        if (isNaN(priceData.currentPrice)) return null;
-
-        cacheManager.set(cacheKey, priceData);
-        return priceData;
+      // 方法 1: 使用 openapi/v1/stock_info (主要方法)
+      try {
+        Logger.log("嘗試 TPEX openapi/v1 API...");
+        result = await this.getTPEXPriceV1(stockCode);
+        if (result) {
+          Logger.log("TPEX v1 API 成功");
+          cacheManager.set(cacheKey, result);
+          return result;
+        }
+      } catch (v1Error) {
+        Logger.log("TPEX v1 API 失敗: " + v1Error);
       }
 
+      // 方法 2: 使用 web API (備用)
+      try {
+        Logger.log("嘗試 TPEX web API...");
+        result = await this.getTPEXPriceWeb(stockCode);
+        if (result) {
+          Logger.log("TPEX web API 成功");
+          cacheManager.set(cacheKey, result);
+          return result;
+        }
+      } catch (webError) {
+        Logger.log("TPEX web API 失敗: " + webError);
+      }
+
+      Logger.log("所有 TPEX API 方法都失敗");
       return null;
+
     } catch (e) {
-      Logger.log("TPEX 錯誤: " + e);
+      Logger.log("TPEX 總體錯誤: " + e);
       return null;
     }
+  }
+
+  /**
+   * 使用 TPEX openapi/v1 API
+   */
+  async getTPEXPriceV1(stockCode) {
+    const url = `${this.tpexBaseUrl}/openapi/v1/stock_info?stock_no=${stockCode}`;
+
+    const response = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json'
+      }
+    });
+
+    const responseCode = response.getResponseCode();
+    if (responseCode !== 200) {
+      throw new Error("HTTP " + responseCode);
+    }
+
+    const content = response.getContentText();
+    Logger.log("TPEX v1 回應長度: " + content.length);
+    Logger.log("TPEX v1 回應: " + content.substring(0, 200));
+
+    const json = JSON.parse(content);
+
+    if (json && json.data && json.data.length > 0) {
+      const lastRow = json.data[json.data.length - 1];
+      const priceData = {
+        currentPrice: parseFloat(lastRow[2].replace(/,/g, "")), // 收盤價
+        previousClose: parseFloat(lastRow[8].replace(/,/g, "")), // 昨收價
+        openPrice: parseFloat(lastRow[4].replace(/,/g, "")), // 開盤價
+        highPrice: parseFloat(lastRow[5].replace(/,/g, "")), // 最高價
+        lowPrice: parseFloat(lastRow[6].replace(/,/g, "")), // 最低價
+        volume: parseInt(lastRow[3].replace(/,/g, "")), // 成交量
+        change: parseFloat(lastRow[2].replace(/,/g, "")) - parseFloat(lastRow[8].replace(/,/g, "")) // 漲跌價
+      };
+
+      if (priceData.currentPrice && !isNaN(priceData.currentPrice) && priceData.currentPrice > 0) {
+        return priceData;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 使用 TPEX web API (備用)
+   */
+  async getTPEXPriceWeb(stockCode) {
+    // TPEX 似乎沒有穩定的 web API，使用備用策略
+    // 這裡可以實作其他資料來源或回傳 null
+    Logger.log("TPEX web API 備用方法 - 目前未實作");
+    return null;
   }
 
   /**
@@ -1918,21 +1986,44 @@ function testTWSEConnection() {
  */
 function testTPEXConnection() {
   try {
-    const url = `https://www.tpex.org.tw/openapi/v1/stock_info?stock_no=6104`;
+    Logger.log("測試 TPEX 多重 API 方法...");
 
-    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    const responseCode = response.getResponseCode();
-    Logger.log("TPEX 回應碼: " + responseCode);
+    // 測試 v1 API
+    try {
+      const url = `https://www.tpex.org.tw/openapi/v1/stock_info?stock_no=6104`;
+      const response = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
+        }
+      });
+      Logger.log("TPEX v1 回應碼: " + response.getResponseCode());
 
-    if (responseCode === 200) {
-      const json = JSON.parse(response.getContentText());
-      Logger.log("TPEX 回應資料長度: " + response.getContentText().length);
-      return json && json.data && json.data.length > 0;
+      if (response.getResponseCode() === 200) {
+        const content = response.getContentText();
+        Logger.log("TPEX v1 回應長度: " + content.length);
+        Logger.log("TPEX v1 回應內容: " + content.substring(0, 200));
+
+        try {
+          const json = JSON.parse(content);
+          if (json && json.data && json.data.length > 0) {
+            Logger.log("TPEX v1 API 測試成功");
+            return true;
+          }
+        } catch (parseError) {
+          Logger.log("TPEX v1 JSON 解析錯誤: " + parseError);
+          Logger.log("回應內容不是有效的 JSON，可能是 HTML 錯誤頁面");
+        }
+      }
+    } catch (v1Error) {
+      Logger.log("TPEX v1 API 測試失敗: " + v1Error);
     }
 
+    Logger.log("所有 TPEX API 測試都失敗");
     return false;
   } catch (e) {
-    Logger.log("TPEX 連線測試錯誤: " + e);
+    Logger.log("TPEX 連線測試總體錯誤: " + e);
     return false;
   }
 }
