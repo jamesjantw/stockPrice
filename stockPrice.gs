@@ -667,6 +667,28 @@ class StockPriceService {
   }
 
   /**
+   * 同步版本：根據股票代號判斷市場類型並取得價格（給 Google Sheets 公式使用）
+   * @param {string} stockCode - 股票代號
+   * @returns {Object|null} 價格指標物件或 null
+   */
+  getPriceSync(stockCode) {
+    if (!stockCode || typeof stockCode !== 'string') return null;
+
+    // 移除可能的空白字元
+    stockCode = stockCode.trim();
+
+    // 判斷市場類型
+    if (this.isListedStock(stockCode)) {
+      return this.getTWSEPriceSync(stockCode);
+    } else if (this.isOTCStock(stockCode)) {
+      return this.getTPEXPriceSync(stockCode);
+    } else {
+      // 假設是美股代號
+      return this.getUSPriceSync(stockCode);
+    }
+  }
+
+  /**
    * 取得完整價格指標（回溯相容性）
    * @param {string} stockCode - 股票代號
    * @returns {Promise<number|null>} 股價或 null（僅為了回溯相容）
@@ -674,6 +696,169 @@ class StockPriceService {
   async getPriceOnly(stockCode) {
     const priceData = await this.getPrice(stockCode);
     return priceData ? priceData.currentPrice : null;
+  }
+
+  /**
+   * 同步版本：取得 TWSE 股價（給 Google Sheets 公式使用）
+   * @param {string} stockCode - 股票代號
+   * @returns {Object|null} 價格指標物件或 null
+   */
+  getTWSEPriceSync(stockCode) {
+    const cacheKey = `twse_${stockCode}`;
+    const cached = cacheManager.get(cacheKey);
+    if (cached !== null) return cached;
+
+    try {
+      Logger.log("同步取得 TWSE 資料: " + stockCode);
+
+      // 直接使用今天的日期，因為 TWSE 會自動回傳最新的交易日資料
+      const today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
+      const url = `${this.twseBaseUrl}/exchangeReport/STOCK_DAY?response=json&date=${today}&stockNo=${stockCode}`;
+
+      Logger.log("TWSE URL: " + url);
+
+      const response = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+
+      const responseCode = response.getResponseCode();
+      Logger.log("TWSE Response Code: " + responseCode);
+
+      if (responseCode !== 200) {
+        Logger.log("TWSE API 回應錯誤: " + responseCode);
+        return null;
+      }
+
+      const jsonText = response.getContentText();
+      Logger.log("TWSE Raw Response length: " + jsonText.length);
+
+      const json = JSON.parse(jsonText);
+      return this.processTWSEData(json, stockCode);
+    } catch (e) {
+      Logger.log("TWSE 同步錯誤: " + e);
+      return null;
+    }
+  }
+
+  /**
+   * 同步版本：取得 TPEX 股價（給 Google Sheets 公式使用）
+   * @param {string} stockCode - 股票代號
+   * @returns {Object|null} 價格指標物件或 null
+   */
+  getTPEXPriceSync(stockCode) {
+    const cacheKey = `tpex_${stockCode}`;
+    const cached = cacheManager.get(cacheKey);
+    if (cached !== null) return cached;
+
+    try {
+      Logger.log("同步取得 TPEX 資料: " + stockCode);
+
+      // 使用 v1 API
+      const url = `${this.tpexBaseUrl}/openapi/v1/stock_info?stock_no=${stockCode}`;
+
+      const response = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
+        }
+      });
+
+      const responseCode = response.getResponseCode();
+      if (responseCode !== 200) {
+        Logger.log("TPEX API 回應錯誤: " + responseCode);
+        return null;
+      }
+
+      const content = response.getContentText();
+      Logger.log("TPEX v1 回應長度: " + content.length);
+
+      const json = JSON.parse(content);
+
+      if (json && json.data && json.data.length > 0) {
+        const lastRow = json.data[json.data.length - 1];
+        const priceData = {
+          currentPrice: parseFloat(lastRow[2].replace(/,/g, "")), // 收盤價
+          previousClose: parseFloat(lastRow[8].replace(/,/g, "")), // 昨收價
+          openPrice: parseFloat(lastRow[4].replace(/,/g, "")), // 開盤價
+          highPrice: parseFloat(lastRow[5].replace(/,/g, "")), // 最高價
+          lowPrice: parseFloat(lastRow[6].replace(/,/g, "")), // 最低價
+          volume: parseInt(lastRow[3].replace(/,/g, "")), // 成交量
+          change: parseFloat(lastRow[2].replace(/,/g, "")) - parseFloat(lastRow[8].replace(/,/g, "")) // 漲跌價
+        };
+
+        if (priceData.currentPrice && !isNaN(priceData.currentPrice) && priceData.currentPrice > 0) {
+          cacheManager.set(cacheKey, priceData);
+          return priceData;
+        }
+      }
+
+      return null;
+    } catch (e) {
+      Logger.log("TPEX 同步錯誤: " + e);
+      return null;
+    }
+  }
+
+  /**
+   * 同步版本：取得美股價格（給 Google Sheets 公式使用）
+   * @param {string} stockCode - 股票代號
+   * @returns {Object|null} 價格指標物件或 null
+   */
+  getUSPriceSync(stockCode) {
+    const cacheKey = `us_${stockCode}`;
+    const cached = cacheManager.get(cacheKey);
+    if (cached !== null) return cached;
+
+    try {
+      Logger.log("同步取得美股資料: " + stockCode);
+
+      // 使用 v7 API
+      const url = `${this.yahooBaseUrl}/v7/finance/quote?symbols=${stockCode}`;
+
+      const response = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
+        }
+      });
+
+      const responseCode = response.getResponseCode();
+      if (responseCode !== 200) {
+        Logger.log("Yahoo API 回應錯誤: " + responseCode);
+        return null;
+      }
+
+      const json = JSON.parse(response.getContentText());
+
+      if (json && json.quoteResponse && json.quoteResponse.result && json.quoteResponse.result[0]) {
+        const quote = json.quoteResponse.result[0];
+
+        const result = {
+          currentPrice: quote.regularMarketPrice || null,
+          previousClose: quote.regularMarketPreviousClose || null,
+          openPrice: quote.regularMarketOpen || null,
+          highPrice: quote.regularMarketDayHigh || null,
+          lowPrice: quote.regularMarketDayLow || null,
+          volume: quote.regularMarketVolume || null,
+          change: quote.regularMarketChange || null
+        };
+
+        if (result.currentPrice && !isNaN(result.currentPrice) && result.currentPrice > 0) {
+          cacheManager.set(cacheKey, result);
+          return result;
+        }
+      }
+
+      return null;
+    } catch (e) {
+      Logger.log("Yahoo 同步錯誤: " + e);
+      return null;
+    }
   }
 
   /**
@@ -1002,18 +1187,39 @@ function TWSTOCKPRICE(stockCode) {
   if (!stockCode) return "無代號";
 
   try {
-    // 使用同步方式取得價格（Google Sheets 公式限制）
-    // 注意：Google Sheets 公式不能使用 async/await
-    // 這裡直接呼叫同步版本
-    const priceData = stockPriceService.getPrice(stockCode);
+    Logger.log("TWSTOCKPRICE 呼叫: " + stockCode);
 
-    if (priceData && priceData.currentPrice !== null && priceData.currentPrice !== undefined && !isNaN(priceData.currentPrice)) {
-      return priceData.currentPrice;
+    // Google Sheets 公式不能使用 async/await，所以我們需要直接呼叫同步方法
+    // 判斷市場類型並呼叫對應的同步方法
+    const trimmedCode = stockCode.toString().trim();
+
+    if (stockPriceService.isListedStock(trimmedCode)) {
+      // 台股上市
+      const priceData = stockPriceService.getTWSEPriceSync(trimmedCode);
+      if (priceData && priceData.currentPrice !== null && priceData.currentPrice !== undefined && !isNaN(priceData.currentPrice)) {
+        Logger.log("TWSTOCKPRICE TWSE 成功: " + trimmedCode + " = " + priceData.currentPrice);
+        return priceData.currentPrice;
+      }
+    } else if (stockPriceService.isOTCStock(trimmedCode)) {
+      // 台股上櫃
+      const priceData = stockPriceService.getTPEXPriceSync(trimmedCode);
+      if (priceData && priceData.currentPrice !== null && priceData.currentPrice !== undefined && !isNaN(priceData.currentPrice)) {
+        Logger.log("TWSTOCKPRICE TPEX 成功: " + trimmedCode + " = " + priceData.currentPrice);
+        return priceData.currentPrice;
+      }
     } else {
-      return "無資料";
+      // 美股
+      const priceData = stockPriceService.getUSPriceSync(trimmedCode);
+      if (priceData && priceData.currentPrice !== null && priceData.currentPrice !== undefined && !isNaN(priceData.currentPrice)) {
+        Logger.log("TWSTOCKPRICE US 成功: " + trimmedCode + " = " + priceData.currentPrice);
+        return priceData.currentPrice;
+      }
     }
+
+    Logger.log("TWSTOCKPRICE 失敗: " + trimmedCode + " 無資料");
+    return "無資料";
   } catch (e) {
-    Logger.log("TWSTOCKPRICE 錯誤: " + e);
+    Logger.log("TWSTOCKPRICE 錯誤: " + stockCode + " - " + e);
     return "錯誤";
   }
 }
