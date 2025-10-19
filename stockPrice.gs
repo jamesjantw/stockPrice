@@ -1587,32 +1587,17 @@ class GoogleSheetsService {
   }
 
   /**
-   * 設定 GETSPARKLINE 公式（支援自訂天數）
+   * 設定 SPARKLINE 走勢圖公式（使用設定表天數）
    * @param {Sheet} sheet - 工作表
    * @param {number} rowIndex - 行索引
    * @param {string} stockCode - 股票代號
    */
   setSparklineFormula(sheet, rowIndex, stockCode) {
-    // 從設定工作表讀取天數設定
-    const settingsSheet = this.spreadsheet.getSheetByName('設定');
-    let days = 30; // 預設 30 天
-
-    if (settingsSheet) {
-      try {
-        const daysValue = settingsSheet.getRange(2, 2).getValue(); // B2: 走勢圖天數
-        if (daysValue && !isNaN(daysValue) && daysValue > 0) {
-          days = Math.min(Math.max(parseInt(daysValue), 7), 365); // 限制在 7-365 天
-        }
-      } catch (e) {
-        Logger.log(`讀取設定天數失敗: ${e}`);
-      }
-    }
-
-    // 設定走勢圖公式 - 使用 GETSPARKLINE 函數
-    const sparklineFormula = `=GETSPARKLINE(A${rowIndex})`;
+    // 使用 SPARKLINE 公式，讀取設定表的天數設定
+    const sparklineFormula = `=SPARKLINE(GOOGLEFINANCE(A${rowIndex}, "price", TODAY()-設定!B2, TODAY()), {"charttype","line";"color","green"})`;
     sheet.getRange(rowIndex, 3).setFormula(sparklineFormula);
 
-    Logger.log(`設定 ${stockCode} 的 GETSPARKLINE 公式，天數: ${days}`);
+    Logger.log(`設定 ${stockCode} 的 SPARKLINE 走勢圖公式`);
   }
 
   /**
@@ -1649,16 +1634,16 @@ class GoogleSheetsService {
     const trendPrompt = `分析 ${stockName} (${stockCode}) 的近期走勢。請簡要描述趨勢方向和關鍵價位。`;
     sheet.getRange(rowIndex, 13).setValue(trendPrompt);
 
-    // 走勢分析 (J 欄) - 引用隱藏欄位的提示文字
-    const trendFormula = `=AI(M${rowIndex}, 0.3)`;
+    // 走勢分析 (J 欄) - 直接引用隱藏欄位
+    const trendFormula = `=AI(M${rowIndex})`;
     sheet.getRange(rowIndex, 10).setFormula(trendFormula);
 
     // 在隱藏欄位 N (14) 設定投資建議提示文字
     const advicePrompt = `請為 ${stockName} (${stockCode}) 提供投資建議（買入/持有/賣出），並說明理由。`;
     sheet.getRange(rowIndex, 14).setValue(advicePrompt);
 
-    // 投資建議 (K 欄) - 引用隱藏欄位的提示文字
-    const investmentAdviceFormula = `=AI(N${rowIndex}, 0.4)`;
+    // 投資建議 (K 欄) - 直接引用隱藏欄位
+    const investmentAdviceFormula = `=AI(N${rowIndex})`;
     sheet.getRange(rowIndex, 11).setFormula(investmentAdviceFormula);
 
     Logger.log(`設定 ${stockCode} 的 AI 分析公式完成 (使用隱藏欄位)`);
@@ -2854,7 +2839,7 @@ function addSampleData(sheet) {
     // 設定公式 (使用欄位引用)
     for (let i = 0; i < sampleData.length; i++) {
       const rowNum = i + 2; // 第2行開始
-      sheet.getRange(rowNum, 3).setFormula(`=GETSPARKLINE(A${rowNum})`);        // 走勢圖
+      sheet.getRange(rowNum, 3).setFormula(`=SPARKLINE(GOOGLEFINANCE(A${rowNum}, "price", TODAY()-設定!B2, TODAY()), {"charttype","line";"color","green"})`);        // 走勢圖
       sheet.getRange(rowNum, 4).setFormula(`=GOOGLEFINANCE(A${rowNum}, "price")`);  // 即時股價
       sheet.getRange(rowNum, 5).setFormula(`=GOOGLEFINANCE(A${rowNum}, "change")`); // 漲跌金額
       sheet.getRange(rowNum, 6).setFormula(`=GOOGLEFINANCE(A${rowNum}, "open")`);   // 開盤價
@@ -2864,11 +2849,11 @@ function addSampleData(sheet) {
       // 在隱藏欄位設定提示文字
       const trendPrompt = `分析 ${sampleData[i][1]} (${sampleData[i][0]}) 的近期走勢。請簡要描述趨勢方向和關鍵價位。`;
       sheet.getRange(rowNum, 13).setValue(trendPrompt);
-      sheet.getRange(rowNum, 10).setFormula(`=AI(M${rowNum}, 0.3)`); // AI走勢分析
+      sheet.getRange(rowNum, 10).setFormula(`=AI(M${rowNum})`); // AI走勢分析
 
       const advicePrompt = `請為 ${sampleData[i][1]} (${sampleData[i][0]}) 提供投資建議（買入/持有/賣出），並說明理由。`;
       sheet.getRange(rowNum, 14).setValue(advicePrompt);
-      sheet.getRange(rowNum, 11).setFormula(`=AI(N${rowNum}, 0.4)`); // AI投資建議
+      sheet.getRange(rowNum, 11).setFormula(`=AI(N${rowNum})`); // AI投資建議
       sheet.getRange(rowNum, 12).setValue(Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")); // 更新時間
     }
   }
@@ -3473,7 +3458,7 @@ function processStockAddition(input, inputType) {
     sheet.getRange(emptyRow, 2).setValue(stockName);
 
     // 設定所有公式 (使用欄位引用)
-    sheet.getRange(emptyRow, 3).setFormula(`=GETSPARKLINE(A${emptyRow})`);        // 走勢圖
+    sheet.getRange(emptyRow, 3).setFormula(`=SPARKLINE(GOOGLEFINANCE(A${emptyRow}, "price", TODAY()-設定!B2, TODAY()), {"charttype","line";"color","green"})`);        // 走勢圖
     sheet.getRange(emptyRow, 4).setFormula(`=GOOGLEFINANCE(A${emptyRow}, "price")`); // 即時股價
     sheet.getRange(emptyRow, 5).setFormula(`=GOOGLEFINANCE(A${emptyRow}, "change")`); // 漲跌金額
     sheet.getRange(emptyRow, 6).setFormula(`=GOOGLEFINANCE(A${emptyRow}, "open")`);   // 開盤價
@@ -3483,11 +3468,11 @@ function processStockAddition(input, inputType) {
     // 在隱藏欄位設定 AI 提示文字
     const trendPrompt = `分析 ${stockName} (${stockCode}) 的近期走勢。請簡要描述趨勢方向和關鍵價位。`;
     sheet.getRange(emptyRow, 13).setValue(trendPrompt);
-    sheet.getRange(emptyRow, 10).setFormula(`=AI(M${emptyRow}, 0.3)`); // AI走勢分析
+    sheet.getRange(emptyRow, 10).setFormula(`=AI(M${emptyRow})`); // AI走勢分析
 
     const advicePrompt = `請為 ${stockName} (${stockCode}) 提供投資建議（買入/持有/賣出），並說明理由。`;
     sheet.getRange(emptyRow, 14).setValue(advicePrompt);
-    sheet.getRange(emptyRow, 11).setFormula(`=AI(N${emptyRow}, 0.4)`); // AI投資建議
+    sheet.getRange(emptyRow, 11).setFormula(`=AI(N${emptyRow})`); // AI投資建議
     sheet.getRange(emptyRow, 12).setValue(Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")); // 更新時間
 
     ui.alert('成功', `股票已新增到第 ${emptyRow} 行！\n\n代號: ${stockCode}\n名稱: ${stockName}\n\n所有公式已自動設定，請稍候讓 GOOGLEFINANCE 和 AI 函數載入資料。`, ui.ButtonSet.OK);
