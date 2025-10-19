@@ -905,7 +905,7 @@ function GETSPARKLINE(stockCode, days = 30) {
 }
 
 /**
- * 更新所有股票價格的自訂選單函數（增強版）
+ * 更新所有股票價格的自訂選單函數（同步版本）
  */
 function updateAllPrices() {
   try {
@@ -969,6 +969,9 @@ function updateAllPrices() {
           );
 
           successCount++;
+
+          // 確保公式存在
+          sheetsService.ensureFormulas(sheet, stock.rowIndex, stock.code);
         } else {
           // 設定為無資料
           sheet.getRange(stock.rowIndex, 4).setValue("無資料");
