@@ -1084,15 +1084,27 @@ function setupConditionalFormatting(sheet) {
  */
 function addSampleData(sheet) {
   const sampleData = [
-    ['2330', '台積電', '=GETSPARKLINE("2330")', '=TWSTOCKPRICE("2330")', '=GETPREVIOUSCLOSE("2330")', '=GETOPENPRICE("2330")', '=GETHIGHPRICE("2330")', '=GETLOWPRICE("2330")'],
-    ['2454', '聯發科', '=GETSPARKLINE("2454")', '=TWSTOCKPRICE("2454")', '=GETPREVIOUSCLOSE("2454")', '=GETOPENPRICE("2454")', '=GETHIGHPRICE("2454")', '=GETLOWPRICE("2454")'],
-    ['2317', '鴻海', '=GETSPARKLINE("2317")', '=TWSTOCKPRICE("2317")', '=GETPREVIOUSCLOSE("2317")', '=GETOPENPRICE("2317")', '=GETHIGHPRICE("2317")', '=GETLOWPRICE("2317")'],
-    ['AAPL', 'Apple Inc.', '=GETSPARKLINE("AAPL")', '=TWSTOCKPRICE("AAPL")', '=GETPREVIOUSCLOSE("AAPL")', '=GETOPENPRICE("AAPL")', '=GETHIGHPRICE("AAPL")', '=GETLOWPRICE("AAPL")'],
-    ['TSLA', 'Tesla', '=GETSPARKLINE("TSLA")', '=TWSTOCKPRICE("TSLA")', '=GETPREVIOUSCLOSE("TSLA")', '=GETOPENPRICE("TSLA")', '=GETHIGHPRICE("TSLA")', '=GETLOWPRICE("TSLA")']
+    ['2330', '台積電'],
+    ['2454', '聯發科'],
+    ['2317', '鴻海'],
+    ['AAPL', 'Apple Inc.'],
+    ['TSLA', 'Tesla']
   ];
 
   if (sampleData.length > 0) {
-    sheet.getRange(2, 1, sampleData.length, 8).setValues(sampleData);
+    // 先設定股票代號和名稱
+    sheet.getRange(2, 1, sampleData.length, 2).setValues(sampleData);
+
+    // 設定公式 (參考 A 欄)
+    for (let i = 0; i < sampleData.length; i++) {
+      const rowNum = i + 2; // 第2行開始
+      sheet.getRange(rowNum, 3).setFormula(`=GETSPARKLINE(A${rowNum})`);     // 走勢圖
+      sheet.getRange(rowNum, 4).setFormula(`=TWSTOCKPRICE(A${rowNum})`);     // 即時股價
+      sheet.getRange(rowNum, 5).setFormula(`=GETPREVIOUSCLOSE(A${rowNum})`); // 昨日收盤
+      sheet.getRange(rowNum, 6).setFormula(`=GETOPENPRICE(A${rowNum})`);     // 開盤價
+      sheet.getRange(rowNum, 7).setFormula(`=GETHIGHPRICE(A${rowNum})`);     // 最高價
+      sheet.getRange(rowNum, 8).setFormula(`=GETLOWPRICE(A${rowNum})`);      // 最低價
+    }
   }
 }
 
@@ -1374,15 +1386,15 @@ function addNewStock() {
       sheet.getRange(emptyRow, 2).setValue('請手動輸入名稱');
     }
 
-    // 設定走勢圖公式
-    sheet.getRange(emptyRow, 3).setFormula(`=GETSPARKLINE("${code}")`);
+    // 設定走勢圖公式 (參考 A 欄股票代號)
+    sheet.getRange(emptyRow, 3).setFormula(`=GETSPARKLINE(A${emptyRow})`);
 
-    // 設定價格指標公式
-    sheet.getRange(emptyRow, 4).setFormula(`=TWSTOCKPRICE("${code}")`);      // 即時股價
-    sheet.getRange(emptyRow, 5).setFormula(`=GETPREVIOUSCLOSE("${code}")`); // 昨日收盤
-    sheet.getRange(emptyRow, 6).setFormula(`=GETOPENPRICE("${code}")`);     // 開盤價
-    sheet.getRange(emptyRow, 7).setFormula(`=GETHIGHPRICE("${code}")`);     // 最高價
-    sheet.getRange(emptyRow, 8).setFormula(`=GETLOWPRICE("${code}")`);      // 最低價
+    // 設定價格指標公式 (參考 A 欄股票代號)
+    sheet.getRange(emptyRow, 4).setFormula(`=TWSTOCKPRICE(A${emptyRow})`);      // 即時股價
+    sheet.getRange(emptyRow, 5).setFormula(`=GETPREVIOUSCLOSE(A${emptyRow})`); // 昨日收盤
+    sheet.getRange(emptyRow, 6).setFormula(`=GETOPENPRICE(A${emptyRow})`);     // 開盤價
+    sheet.getRange(emptyRow, 7).setFormula(`=GETHIGHPRICE(A${emptyRow})`);     // 最高價
+    sheet.getRange(emptyRow, 8).setFormula(`=GETLOWPRICE(A${emptyRow})`);      // 最低價
 
     ui.alert('成功', `股票 ${code} 已新增到第 ${emptyRow} 行，所有公式已自動設定`, ui.ButtonSet.OK);
 
