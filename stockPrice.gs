@@ -551,6 +551,9 @@ class GoogleSheetsService {
 
           // 更新時間戳 (I 欄，index 9)
           sheet.getRange(stock.rowIndex, 9).setValue(timestamp);
+
+          // 重新設定公式，以防被覆蓋
+          this.ensureFormulas(sheet, stock.rowIndex, stock.code);
         } else {
           // 設定為無資料
           sheet.getRange(stock.rowIndex, 4).setValue("無資料");
@@ -573,6 +576,39 @@ class GoogleSheetsService {
         sheet.getRange(stock.rowIndex, 8).setValue("錯誤");
       }
     }
+  }
+
+  /**
+   * 確保公式存在（防止更新時被覆蓋）
+   * @param {Sheet} sheet - 工作表
+   * @param {number} rowIndex - 行索引
+   * @param {string} stockCode - 股票代號
+   */
+  ensureFormulas(sheet, rowIndex, stockCode) {
+    // 檢查並重新設定走勢圖公式
+    const sparklineCell = sheet.getRange(rowIndex, 3);
+    const currentSparkline = sparklineCell.getFormula();
+    if (!currentSparkline || !currentSparkline.includes('GETSPARKLINE')) {
+      sparklineCell.setFormula(`=GETSPARKLINE(A${rowIndex})`);
+    }
+
+    // 檢查並重新設定價格指標公式
+    const priceCells = [
+      { col: 4, formula: `=TWSTOCKPRICE(A${rowIndex})` },
+      { col: 5, formula: `=GETPREVIOUSCLOSE(A${rowIndex})` },
+      { col: 6, formula: `=GETOPENPRICE(A${rowIndex})` },
+      { col: 7, formula: `=GETHIGHPRICE(A${rowIndex})` },
+      { col: 8, formula: `=GETLOWPRICE(A${rowIndex})` }
+    ];
+
+    priceCells.forEach(({ col, formula }) => {
+      const cell = sheet.getRange(rowIndex, col);
+      const currentFormula = cell.getFormula();
+      // 如果是數值或空值，重新設定公式
+      if (!currentFormula || currentFormula === '') {
+        cell.setFormula(formula);
+      }
+    });
   }
 
   /**
