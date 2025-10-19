@@ -1293,119 +1293,22 @@ function updateSingleStock() {
 }
 
 /**
- * 顯示單支股票更新進度條
+ * 顯示單支股票更新進度條（移除 HTML 服務，使用簡單對話框）
  */
 function showSingleStockProgress(stockCode, stockName, rowIndex) {
   try {
-    const html = HtmlService
-      .createHtmlOutput(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <base target="_top">
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; }
-              .progress-container { margin: 20px 0; }
-              .progress-bar {
-                width: 100%;
-                height: 20px;
-                background-color: #f0f0f0;
-                border-radius: 10px;
-                overflow: hidden;
-              }
-              .progress-fill {
-                height: 100%;
-                background-color: #2196F3;
-                width: 0%;
-                transition: width 0.3s ease;
-              }
-              .status { margin: 10px 0; font-weight: bold; color: #333; }
-              .stock-info { margin: 15px 0; padding: 10px; background-color: #f8f9fa; border-radius: 5px; }
-              .time-info { font-size: 12px; color: #666; margin-top: 10px; }
-              button { padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; }
-              .btn-primary { background-color: #2196F3; color: white; }
-              .btn-secondary { background-color: #6c757d; color: white; }
-              .success { color: #28a745; }
-              .error { color: #dc3545; }
-            </style>
-          </head>
-          <body>
-            <h3>更新單支股票</h3>
-            <div class="stock-info">
-              <strong>股票代號:</strong> ${stockCode}<br>
-              <strong>股票名稱:</strong> ${stockName}
-            </div>
-            <div class="status" id="status">準備開始更新...</div>
-            <div class="progress-container">
-              <div class="progress-bar">
-                <div class="progress-fill" id="progressFill"></div>
-              </div>
-            </div>
-            <div id="details">正在初始化...</div>
-            <div class="time-info" id="timeInfo">開始時間: ${new Date().toLocaleTimeString()}</div>
-            <button class="btn-secondary" onclick="closeDialog()">關閉</button>
+    // 顯示開始訊息
+    SpreadsheetApp.getUi().alert('開始更新', `正在更新股票 ${stockCode} (${stockName}) 的價格資料...\n\n請稍候，這可能需要幾秒鐘。`, SpreadsheetApp.getUi().ButtonSet.OK);
 
-            <script>
-              let startTime = Date.now();
+    // 直接呼叫更新函數
+    const result = updateSingleStockWithProgress(stockCode, rowIndex);
 
-              function updateProgress(percent, message, isSuccess = null) {
-                document.getElementById('progressFill').style.width = percent + '%';
-                const statusEl = document.getElementById('status');
-                statusEl.textContent = message;
-
-                if (isSuccess === true) {
-                  statusEl.className = 'status success';
-                } else if (isSuccess === false) {
-                  statusEl.className = 'status error';
-                } else {
-                  statusEl.className = 'status';
-                }
-
-                document.getElementById('details').textContent =
-                  '已完成 ' + percent + '% - ' + message;
-
-                const elapsed = Math.round((Date.now() - startTime) / 1000);
-                document.getElementById('timeInfo').textContent =
-                  '開始時間: ' + new Date(startTime).toLocaleTimeString() +
-                  ' | 耗時: ' + elapsed + ' 秒';
-              }
-
-              function startUpdate() {
-                updateProgress(10, '連線到股票 API...');
-
-                // 呼叫 Google Apps Script 函數
-                google.script.run
-                  .withSuccessHandler(function(result) {
-                    if (result && result.success) {
-                      updateProgress(100, '更新成功！✓', true);
-                      document.getElementById('details').textContent =
-                        '股票 ' + result.stockCode + ' 更新完成！耗時: ' + result.duration + ' 秒';
-                    } else {
-                      updateProgress(100, '更新失敗 ✗', false);
-                      document.getElementById('details').textContent = '錯誤: ' + (result ? result.error : '未知錯誤');
-                    }
-                  })
-                  .withFailureHandler(function(error) {
-                    updateProgress(100, '更新失敗 ✗', false);
-                    document.getElementById('details').textContent = '系統錯誤: ' + error.toString();
-                  })
-                  .updateSingleStockWithProgress('${stockCode}', ${rowIndex});
-              }
-
-              function closeDialog() {
-                google.script.host.close();
-              }
-
-              // 自動開始更新
-              setTimeout(startUpdate, 500);
-            </script>
-          </body>
-        </html>
-      `)
-      .setWidth(450)
-      .setHeight(350);
-
-    SpreadsheetApp.getUi().showModalDialog(html, '單支股票更新進度');
+    // 顯示結果
+    if (result && result.success) {
+      SpreadsheetApp.getUi().alert('更新成功', `股票 ${result.stockCode} 更新完成！\n耗時: ${result.duration} 秒`, SpreadsheetApp.getUi().ButtonSet.OK);
+    } else {
+      SpreadsheetApp.getUi().alert('更新失敗', `無法取得股票 ${stockCode} 的價格資料。\n錯誤: ${result ? result.error : '未知錯誤'}\n\n請檢查股票代號是否正確，或查看應用程式記錄以取得詳細資訊。`, SpreadsheetApp.getUi().ButtonSet.OK);
+    }
 
   } catch (e) {
     Logger.log('showSingleStockProgress 錯誤: ' + e);
@@ -1414,7 +1317,7 @@ function showSingleStockProgress(stockCode, stockName, rowIndex) {
 }
 
 /**
- * 實際執行單支股票更新的函數（由進度條呼叫）
+ * 實際執行單支股票更新的函數
  */
 function updateSingleStockWithProgress(stockCode, rowIndex) {
   try {
@@ -1423,13 +1326,10 @@ function updateSingleStockWithProgress(stockCode, rowIndex) {
 
     const sheet = SpreadsheetApp.getActiveSheet();
 
-    // 模擬進度更新（實際上是同步操作，但給用戶視覺回饋）
-    Utilities.sleep(500); // 給點時間讓進度條顯示
-
     // 取得價格資料
     const priceData = stockPriceService.getPrice(stockCode);
 
-    if (priceData !== null) {
+    if (priceData !== null && priceData.currentPrice !== null && priceData.currentPrice !== undefined) {
       // 更新價格指標
       sheet.getRange(rowIndex, 4).setValue(priceData.currentPrice); // 即時股價
       if (priceData.previousClose !== null) {
