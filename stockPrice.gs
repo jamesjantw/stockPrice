@@ -1761,6 +1761,9 @@ function runFullTestSuite() {
   Logger.log("=== 股價追蹤工具完整測試套件開始 ===");
 
   try {
+    // 顯示開始訊息
+    SpreadsheetApp.getUi().alert("測試開始", "正在執行完整功能測試套件...\n\n請查看 Apps Script 記錄以取得詳細結果。", SpreadsheetApp.getUi().ButtonSet.OK);
+
     // 測試 1: 基本功能
     Logger.log("--- 測試 1: 基本股價查詢 ---");
     testBasicFunctionality();
@@ -1787,8 +1790,12 @@ function runFullTestSuite() {
 
     Logger.log("=== 完整測試套件執行完成 ===");
 
+    // 顯示完成訊息
+    SpreadsheetApp.getUi().alert("測試完成", "完整功能測試套件已執行完畢！\n\n請查看 Apps Script 的執行記錄 (Executions > Logs) 以取得詳細測試結果。", SpreadsheetApp.getUi().ButtonSet.OK);
+
   } catch (e) {
     Logger.log("測試套件執行錯誤: " + e);
+    SpreadsheetApp.getUi().alert("測試錯誤", "測試套件執行時發生錯誤：" + e.toString(), SpreadsheetApp.getUi().ButtonSet.OK);
   }
 }
 
