@@ -268,63 +268,179 @@ class StockPriceService {
     try {
       Logger.log("開始取得美股資料: " + stockCode);
 
-      // 使用 Yahoo Finance 的 v7 API，更穩定且支援更多資料
-      const url = `${this.yahooBaseUrl}/v7/finance/quote?symbols=${stockCode}`;
+      // 嘗試多個 Yahoo Finance API 端點
+      let result = null;
 
-      Logger.log("Yahoo URL: " + url);
-
-      const response = UrlFetchApp.fetch(url, {
-        muteHttpExceptions: true,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'application/json'
+      // 方法 1: 使用 v7 API (主要方法)
+      try {
+        Logger.log("嘗試 Yahoo Finance v7 API...");
+        result = await this.getUSPriceV7(stockCode);
+        if (result) {
+          Logger.log("Yahoo v7 API 成功");
+          cacheManager.set(cacheKey, result);
+          return result;
         }
-      });
-
-      const responseCode = response.getResponseCode();
-      Logger.log("Yahoo Response Code: " + responseCode);
-
-      if (responseCode !== 200) {
-        Logger.log("Yahoo API 回應錯誤: " + responseCode);
-        return null;
+      } catch (v7Error) {
+        Logger.log("Yahoo v7 API 失敗: " + v7Error);
       }
 
-      const jsonText = response.getContentText();
-      Logger.log("Yahoo Raw Response length: " + jsonText.length);
-      Logger.log("Yahoo Raw Response: " + jsonText.substring(0, 300));
-
-      const json = JSON.parse(jsonText);
-
-      if (json && json.quoteResponse && json.quoteResponse.result && json.quoteResponse.result[0]) {
-        const quote = json.quoteResponse.result[0];
-
-        const result = {
-          currentPrice: quote.regularMarketPrice || null,
-          previousClose: quote.regularMarketPreviousClose || null,
-          openPrice: quote.regularMarketOpen || null,
-          highPrice: quote.regularMarketDayHigh || null,
-          lowPrice: quote.regularMarketDayLow || null,
-          volume: quote.regularMarketVolume || null,
-          change: quote.regularMarketChange || null
-        };
-
-        // 驗證資料完整性
-        if (isNaN(result.currentPrice) || result.currentPrice <= 0) {
-          Logger.log("Yahoo 價格資料無效: " + result.currentPrice);
-          return null;
+      // 方法 2: 使用 v10 API (備用)
+      try {
+        Logger.log("嘗試 Yahoo Finance v10 API...");
+        result = await this.getUSPriceV10(stockCode);
+        if (result) {
+          Logger.log("Yahoo v10 API 成功");
+          cacheManager.set(cacheKey, result);
+          return result;
         }
-
-        Logger.log("Yahoo 成功取得資料: " + JSON.stringify(result));
-        cacheManager.set(cacheKey, result);
-        return result;
+      } catch (v10Error) {
+        Logger.log("Yahoo v10 API 失敗: " + v10Error);
       }
 
-      Logger.log("Yahoo 無資料或資料格式錯誤");
+      // 方法 3: 使用舊版 API (最後備用)
+      try {
+        Logger.log("嘗試 Yahoo Finance 舊版 API...");
+        result = await this.getUSPriceLegacy(stockCode);
+        if (result) {
+          Logger.log("Yahoo 舊版 API 成功");
+          cacheManager.set(cacheKey, result);
+          return result;
+        }
+      } catch (legacyError) {
+        Logger.log("Yahoo 舊版 API 失敗: " + legacyError);
+      }
+
+      Logger.log("所有 Yahoo Finance API 方法都失敗");
       return null;
+
     } catch (e) {
-      Logger.log("Yahoo Finance 錯誤: " + e);
+      Logger.log("Yahoo Finance 總體錯誤: " + e);
       return null;
     }
+  }
+
+  /**
+   * 使用 Yahoo Finance v7 API
+   */
+  async getUSPriceV7(stockCode) {
+    const url = `${this.yahooBaseUrl}/v7/finance/quote?symbols=${stockCode}`;
+
+    const response = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json'
+      }
+    });
+
+    const responseCode = response.getResponseCode();
+    if (responseCode !== 200) {
+      throw new Error("HTTP " + responseCode);
+    }
+
+    const json = JSON.parse(response.getContentText());
+
+    if (json && json.quoteResponse && json.quoteResponse.result && json.quoteResponse.result[0]) {
+      const quote = json.quoteResponse.result[0];
+
+      const result = {
+        currentPrice: quote.regularMarketPrice || null,
+        previousClose: quote.regularMarketPreviousClose || null,
+        openPrice: quote.regularMarketOpen || null,
+        highPrice: quote.regularMarketDayHigh || null,
+        lowPrice: quote.regularMarketDayLow || null,
+        volume: quote.regularMarketVolume || null,
+        change: quote.regularMarketChange || null
+      };
+
+      if (result.currentPrice && !isNaN(result.currentPrice) && result.currentPrice > 0) {
+        return result;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 使用 Yahoo Finance v10 API
+   */
+  async getUSPriceV10(stockCode) {
+    const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${stockCode}?modules=price`;
+
+    const response = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json'
+      }
+    });
+
+    const responseCode = response.getResponseCode();
+    if (responseCode !== 200) {
+      throw new Error("HTTP " + responseCode);
+    }
+
+    const json = JSON.parse(response.getContentText());
+
+    if (json && json.quoteSummary && json.quoteSummary.result && json.quoteSummary.result[0]) {
+      const priceData = json.quoteSummary.result[0].price;
+
+      const result = {
+        currentPrice: priceData.regularMarketPrice?.raw || null,
+        previousClose: priceData.regularMarketPreviousClose?.raw || null,
+        openPrice: priceData.regularMarketOpen?.raw || null,
+        highPrice: priceData.regularMarketDayHigh?.raw || null,
+        lowPrice: priceData.regularMarketDayLow?.raw || null,
+        volume: priceData.regularMarketVolume?.raw || null,
+        change: priceData.regularMarketChange?.raw || null
+      };
+
+      if (result.currentPrice && !isNaN(result.currentPrice) && result.currentPrice > 0) {
+        return result;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 使用 Yahoo Finance 舊版 API (最後備用)
+   */
+  async getUSPriceLegacy(stockCode) {
+    const url = `https://finance.yahoo.com/quote/${stockCode}`;
+
+    const response = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    const responseCode = response.getResponseCode();
+    if (responseCode !== 200) {
+      throw new Error("HTTP " + responseCode);
+    }
+
+    const content = response.getContentText();
+
+    // 簡單的 HTML 解析來取得價格 (非常不穩定，僅作為最後備用)
+    const priceMatch = content.match(/"regularMarketPrice":\s*{\s*"raw":\s*([\d.]+)/);
+    if (priceMatch && priceMatch[1]) {
+      const currentPrice = parseFloat(priceMatch[1]);
+      if (!isNaN(currentPrice) && currentPrice > 0) {
+        return {
+          currentPrice: currentPrice,
+          previousClose: null,
+          openPrice: null,
+          highPrice: null,
+          lowPrice: null,
+          volume: null,
+          change: null
+        };
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -1865,28 +1981,56 @@ function testTPEXConnection() {
  */
 function testYahooConnection() {
   try {
-    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=AAPL`;
+    Logger.log("測試 Yahoo Finance 多重 API 方法...");
 
-    const response = UrlFetchApp.fetch(url, {
-      muteHttpExceptions: true,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json'
+    // 測試 v7 API
+    try {
+      const urlV7 = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=AAPL`;
+      const responseV7 = UrlFetchApp.fetch(urlV7, {
+        muteHttpExceptions: true,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
+        }
+      });
+      Logger.log("Yahoo v7 回應碼: " + responseV7.getResponseCode());
+      if (responseV7.getResponseCode() === 200) {
+        const jsonV7 = JSON.parse(responseV7.getContentText());
+        if (jsonV7 && jsonV7.quoteResponse && jsonV7.quoteResponse.result && jsonV7.quoteResponse.result.length > 0) {
+          Logger.log("Yahoo v7 API 測試成功");
+          return true;
+        }
       }
-    });
-
-    const responseCode = response.getResponseCode();
-    Logger.log("Yahoo 回應碼: " + responseCode);
-
-    if (responseCode === 200) {
-      const json = JSON.parse(response.getContentText());
-      Logger.log("Yahoo 回應資料長度: " + response.getContentText().length);
-      return json && json.quoteResponse && json.quoteResponse.result && json.quoteResponse.result.length > 0;
+    } catch (v7Error) {
+      Logger.log("Yahoo v7 API 測試失敗: " + v7Error);
     }
 
+    // 測試 v10 API
+    try {
+      const urlV10 = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/AAPL?modules=price`;
+      const responseV10 = UrlFetchApp.fetch(urlV10, {
+        muteHttpExceptions: true,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
+        }
+      });
+      Logger.log("Yahoo v10 回應碼: " + responseV10.getResponseCode());
+      if (responseV10.getResponseCode() === 200) {
+        const jsonV10 = JSON.parse(responseV10.getContentText());
+        if (jsonV10 && jsonV10.quoteSummary && jsonV10.quoteSummary.result && jsonV10.quoteSummary.result.length > 0) {
+          Logger.log("Yahoo v10 API 測試成功");
+          return true;
+        }
+      }
+    } catch (v10Error) {
+      Logger.log("Yahoo v10 API 測試失敗: " + v10Error);
+    }
+
+    Logger.log("所有 Yahoo Finance API 測試都失敗");
     return false;
   } catch (e) {
-    Logger.log("Yahoo 連線測試錯誤: " + e);
+    Logger.log("Yahoo 連線測試總體錯誤: " + e);
     return false;
   }
 }
