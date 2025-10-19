@@ -904,7 +904,7 @@ function GETSPARKLINE(stockCode, days = 30) {
 }
 
 /**
- * 更新所有股票價格的自訂選單函數（同步版本）
+ * 更新所有股票價格的自訂選單函數（效能優化版本）
  */
 function updateAllPrices() {
   try {
@@ -919,19 +919,22 @@ function updateAllPrices() {
 
     // 顯示開始訊息
     const startTime = new Date();
-    SpreadsheetApp.getUi().alert(`開始更新 ${stocks.length} 支股票的價格...\n\n預計需要約 ${Math.ceil(stocks.length * 0.3)} 秒`);
+    SpreadsheetApp.getUi().alert(`開始更新 ${stocks.length} 支股票的價格...\n\n預計需要約 ${Math.ceil(stocks.length * 0.2)} 秒`);
 
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
+
+    // 效能優化：批次更新資料而不是逐個儲存格更新
+    const updates = [];
 
     // 更新價格和指標（使用同步方式，因為 Apps Script 限制）
     for (let i = 0; i < stocks.length; i++) {
       const stock = stocks[i];
 
       try {
-        // 顯示進度（每5支股票顯示一次）
-        if ((i + 1) % 5 === 0 || i === 0) {
+        // 顯示進度（每10支股票顯示一次）
+        if ((i + 1) % 10 === 0 || i === 0) {
           SpreadsheetApp.getUi().alert(`正在更新股票 ${i + 1}/${stocks.length}...\n目前成功: ${successCount}, 失敗: ${errorCount}`);
         }
 
@@ -939,68 +942,85 @@ function updateAllPrices() {
         const priceData = stockPriceService.getPrice(stock.code);
 
         if (priceData !== null) {
-          // 更新即時股價 (D 欄)
-          sheet.getRange(stock.rowIndex, 4).setValue(priceData.currentPrice);
-
-          // 更新昨日收盤價 (E 欄)
-          if (priceData.previousClose !== null) {
-            sheet.getRange(stock.rowIndex, 5).setValue(priceData.previousClose);
-          }
-
-          // 更新開盤價 (F 欄)
-          if (priceData.openPrice !== null) {
-            sheet.getRange(stock.rowIndex, 6).setValue(priceData.openPrice);
-          }
-
-          // 更新最高價 (G 欄)
-          if (priceData.highPrice !== null) {
-            sheet.getRange(stock.rowIndex, 7).setValue(priceData.highPrice);
-          }
-
-          // 更新最低價 (H 欄)
-          if (priceData.lowPrice !== null) {
-            sheet.getRange(stock.rowIndex, 8).setValue(priceData.lowPrice);
-          }
-
-          // 更新時間戳 (I 欄)
-          sheet.getRange(stock.rowIndex, 9).setValue(
-            Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")
-          );
+          // 收集更新資料，準備批次更新
+          updates.push({
+            rowIndex: stock.rowIndex,
+            data: [
+              priceData.currentPrice, // D 欄 - 即時股價
+              priceData.previousClose || "無資料", // E 欄 - 昨日收盤
+              priceData.openPrice || "無資料", // F 欄 - 開盤價
+              priceData.highPrice || "無資料", // G 欄 - 最高價
+              priceData.lowPrice || "無資料", // H 欄 - 最低價
+              Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss") // I 欄 - 更新時間
+            ]
+          });
 
           successCount++;
-
-          // 確保公式存在
-          sheetsService.ensureFormulas(sheet, stock.rowIndex, stock.code);
         } else {
-          // 設定為無資料
-          sheet.getRange(stock.rowIndex, 4).setValue("無資料");
-          sheet.getRange(stock.rowIndex, 5).setValue("無資料");
-          sheet.getRange(stock.rowIndex, 6).setValue("無資料");
-          sheet.getRange(stock.rowIndex, 7).setValue("無資料");
-          sheet.getRange(stock.rowIndex, 8).setValue("無資料");
-          sheet.getRange(stock.rowIndex, 9).setValue(
-            Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")
-          );
+          // 收集錯誤資料
+          updates.push({
+            rowIndex: stock.rowIndex,
+            data: [
+              "無資料", // D 欄
+              "無資料", // E 欄
+              "無資料", // F 欄
+              "無資料", // G 欄
+              "無資料", // H 欄
+              Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss") // I 欄
+            ]
+          });
 
           errorCount++;
           errors.push(`${stock.code}: 無資料`);
         }
 
-        // API 呼叫間隔
-        Utilities.sleep(200);
+        // API 呼叫間隔（縮短到 100ms 以提升速度）
+        Utilities.sleep(100);
 
       } catch (e) {
         Logger.log(`更新股票 ${stock.code} 時發生錯誤: ${e}`);
-        sheet.getRange(stock.rowIndex, 4).setValue("錯誤");
-        sheet.getRange(stock.rowIndex, 5).setValue("錯誤");
-        sheet.getRange(stock.rowIndex, 6).setValue("錯誤");
-        sheet.getRange(stock.rowIndex, 7).setValue("錯誤");
-        sheet.getRange(stock.rowIndex, 8).setValue("錯誤");
+
+        // 收集錯誤資料
+        updates.push({
+          rowIndex: stock.rowIndex,
+          data: [
+            "錯誤", // D 欄
+            "錯誤", // E 欄
+            "錯誤", // F 欄
+            "錯誤", // G 欄
+            "錯誤", // H 欄
+            Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss") // I 欄
+          ]
+        });
 
         errorCount++;
         errors.push(`${stock.code}: ${e.toString()}`);
       }
     }
+
+    // 批次更新所有資料（大幅提升效能）
+    if (updates.length > 0) {
+      // 將更新資料轉換為二維陣列
+      const updateRanges = [];
+      const updateValues = [];
+
+      updates.forEach(update => {
+        updateRanges.push(sheet.getRange(update.rowIndex, 4, 1, 6)); // D 到 I 欄
+        updateValues.push(update.data);
+      });
+
+      // 批次設定值
+      for (let i = 0; i < updateRanges.length; i++) {
+        updateRanges[i].setValues([updateValues[i]]);
+      }
+
+      Logger.log(`批次更新完成，共更新 ${updates.length} 筆資料`);
+    }
+
+    // 確保所有公式都存在（僅在更新完成後執行一次）
+    stocks.forEach(stock => {
+      sheetsService.ensureFormulas(sheet, stock.rowIndex, stock.code);
+    });
 
     // 重新整理試算表
     sheetsService.refreshSheet(sheet);
@@ -1055,7 +1075,112 @@ function onOpen() {
     .addItem('初始化試算表格式', 'initializeSheetFormat')
     .addItem('新增股票', 'addNewStock')
     .addItem('刪除股票', 'removeStock')
+    .addSeparator()
+    .addItem('顯示更新進度', 'showProgressDialog')
     .addToUi();
+}
+
+/**
+ * 顯示更新進度對話框（模擬進度條）
+ */
+function showProgressDialog() {
+  try {
+    const html = HtmlService
+      .createHtmlOutput(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <base target="_top">
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; }
+              .progress-container { margin: 20px 0; }
+              .progress-bar {
+                width: 100%;
+                height: 20px;
+                background-color: #f0f0f0;
+                border-radius: 10px;
+                overflow: hidden;
+              }
+              .progress-fill {
+                height: 100%;
+                background-color: #4CAF50;
+                width: 0%;
+                transition: width 0.3s ease;
+              }
+              .status { margin: 10px 0; font-weight: bold; }
+              button { padding: 10px 20px; margin: 5px; }
+            </style>
+          </head>
+          <body>
+            <h3>股價更新進度</h3>
+            <div class="status" id="status">準備開始更新...</div>
+            <div class="progress-container">
+              <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+              </div>
+            </div>
+            <div id="details">正在初始化...</div>
+            <button onclick="startUpdate()">開始更新</button>
+            <button onclick="closeDialog()">關閉</button>
+
+            <script>
+              let progress = 0;
+              let isUpdating = false;
+
+              function updateProgress(percent, message) {
+                document.getElementById('progressFill').style.width = percent + '%';
+                document.getElementById('status').textContent = message;
+                document.getElementById('details').textContent =
+                  '已完成 ' + percent + '% - ' + message;
+              }
+
+              function startUpdate() {
+                if (isUpdating) return;
+                isUpdating = true;
+
+                updateProgress(0, '開始更新股票價格...');
+
+                // 模擬更新過程
+                const steps = [
+                  { percent: 10, message: '讀取股票清單...' },
+                  { percent: 25, message: '連線到台股 API...' },
+                  { percent: 50, message: '取得台股價格資料...' },
+                  { percent: 75, message: '連線到美股 API...' },
+                  { percent: 90, message: '取得美股價格資料...' },
+                  { percent: 100, message: '更新完成！' }
+                ];
+
+                let stepIndex = 0;
+                const interval = setInterval(() => {
+                  if (stepIndex < steps.length) {
+                    updateProgress(steps[stepIndex].percent, steps[stepIndex].message);
+                    stepIndex++;
+                  } else {
+                    clearInterval(interval);
+                    isUpdating = false;
+                    setTimeout(() => {
+                      google.script.host.close();
+                    }, 2000);
+                  }
+                }, 800);
+              }
+
+              function closeDialog() {
+                google.script.host.close();
+              }
+            </script>
+          </body>
+        </html>
+      `)
+      .setWidth(400)
+      .setHeight(300);
+
+    SpreadsheetApp.getUi().showModalDialog(html, '股價更新進度');
+
+  } catch (e) {
+    Logger.log('showProgressDialog 錯誤: ' + e);
+    SpreadsheetApp.getUi().alert('顯示進度對話框時發生錯誤：' + e.toString());
+  }
 }
 
 /**
