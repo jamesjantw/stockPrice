@@ -1084,15 +1084,15 @@ function setupConditionalFormatting(sheet) {
  */
 function addSampleData(sheet) {
   const sampleData = [
-    ['2330', '台積電', '=GETSPARKLINE("2330")'],
-    ['2454', '聯發科', '=GETSPARKLINE("2454")'],
-    ['2317', '鴻海', '=GETSPARKLINE("2317")'],
-    ['AAPL', 'Apple Inc.', '=GETSPARKLINE("AAPL")'],
-    ['TSLA', 'Tesla', '=GETSPARKLINE("TSLA")']
+    ['2330', '台積電', '=GETSPARKLINE("2330")', '=TWSTOCKPRICE("2330")', '=GETPREVIOUSCLOSE("2330")', '=GETOPENPRICE("2330")', '=GETHIGHPRICE("2330")', '=GETLOWPRICE("2330")'],
+    ['2454', '聯發科', '=GETSPARKLINE("2454")', '=TWSTOCKPRICE("2454")', '=GETPREVIOUSCLOSE("2454")', '=GETOPENPRICE("2454")', '=GETHIGHPRICE("2454")', '=GETLOWPRICE("2454")'],
+    ['2317', '鴻海', '=GETSPARKLINE("2317")', '=TWSTOCKPRICE("2317")', '=GETPREVIOUSCLOSE("2317")', '=GETOPENPRICE("2317")', '=GETHIGHPRICE("2317")', '=GETLOWPRICE("2317")'],
+    ['AAPL', 'Apple Inc.', '=GETSPARKLINE("AAPL")', '=TWSTOCKPRICE("AAPL")', '=GETPREVIOUSCLOSE("AAPL")', '=GETOPENPRICE("AAPL")', '=GETHIGHPRICE("AAPL")', '=GETLOWPRICE("AAPL")'],
+    ['TSLA', 'Tesla', '=GETSPARKLINE("TSLA")', '=TWSTOCKPRICE("TSLA")', '=GETPREVIOUSCLOSE("TSLA")', '=GETOPENPRICE("TSLA")', '=GETHIGHPRICE("TSLA")', '=GETLOWPRICE("TSLA")']
   ];
 
   if (sampleData.length > 0) {
-    sheet.getRange(2, 1, sampleData.length, 3).setValues(sampleData);
+    sheet.getRange(2, 1, sampleData.length, 8).setValues(sampleData);
   }
 }
 
@@ -1377,7 +1377,14 @@ function addNewStock() {
     // 設定走勢圖公式
     sheet.getRange(emptyRow, 3).setFormula(`=GETSPARKLINE("${code}")`);
 
-    ui.alert('成功', `股票 ${code} 已新增到第 ${emptyRow} 行`, ui.ButtonSet.OK);
+    // 設定價格指標公式
+    sheet.getRange(emptyRow, 4).setFormula(`=TWSTOCKPRICE("${code}")`);      // 即時股價
+    sheet.getRange(emptyRow, 5).setFormula(`=GETPREVIOUSCLOSE("${code}")`); // 昨日收盤
+    sheet.getRange(emptyRow, 6).setFormula(`=GETOPENPRICE("${code}")`);     // 開盤價
+    sheet.getRange(emptyRow, 7).setFormula(`=GETHIGHPRICE("${code}")`);     // 最高價
+    sheet.getRange(emptyRow, 8).setFormula(`=GETLOWPRICE("${code}")`);      // 最低價
+
+    ui.alert('成功', `股票 ${code} 已新增到第 ${emptyRow} 行，所有公式已自動設定`, ui.ButtonSet.OK);
 
   } catch (e) {
     Logger.log('addNewStock 錯誤: ' + e);
