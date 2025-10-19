@@ -1070,6 +1070,7 @@ function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('股價工具')
     .addItem('更新所有價格', 'updateAllPrices')
+    .addItem('更新單支股票', 'updateSingleStock')
     .addItem('清除快取', 'clearCache')
     .addSeparator()
     .addItem('初始化試算表格式', 'initializeSheetFormat')
@@ -1078,6 +1079,98 @@ function onOpen() {
     .addSeparator()
     .addItem('顯示更新進度', 'showProgressDialog')
     .addToUi();
+}
+
+/**
+ * 更新單支股票的自訂選單函數
+ */
+function updateSingleStock() {
+  try {
+    const ui = SpreadsheetApp.getUi();
+
+    // 取得目前選中的儲存格
+    const activeRange = SpreadsheetApp.getActiveRange();
+    if (!activeRange) {
+      ui.alert('請先選取一個儲存格');
+      return;
+    }
+
+    const sheet = activeRange.getSheet();
+    const rowIndex = activeRange.getRow();
+
+    // 檢查是否為有效的股票行（有股票代號）
+    const stockCode = sheet.getRange(rowIndex, 1).getValue();
+    const stockName = sheet.getRange(rowIndex, 2).getValue();
+
+    if (!stockCode || stockCode.toString().trim() === '') {
+      ui.alert('錯誤', '請選取包含股票代號的行', ui.ButtonSet.OK);
+      return;
+    }
+
+    // 顯示更新訊息
+    const confirmResult = ui.alert(
+      '更新單支股票',
+      `確定要更新股票 ${stockCode} (${stockName || '未命名'}) 嗎？`,
+      ui.ButtonSet.YES_NO
+    );
+
+    if (confirmResult !== ui.Button.YES) return;
+
+    // 開始更新
+    const startTime = new Date();
+
+    try {
+      // 取得價格資料
+      const priceData = stockPriceService.getPrice(stockCode.toString().trim());
+
+      if (priceData !== null) {
+        // 更新價格指標
+        sheet.getRange(rowIndex, 4).setValue(priceData.currentPrice); // 即時股價
+        if (priceData.previousClose !== null) {
+          sheet.getRange(rowIndex, 5).setValue(priceData.previousClose); // 昨日收盤
+        }
+        if (priceData.openPrice !== null) {
+          sheet.getRange(rowIndex, 6).setValue(priceData.openPrice); // 開盤價
+        }
+        if (priceData.highPrice !== null) {
+          sheet.getRange(rowIndex, 7).setValue(priceData.highPrice); // 最高價
+        }
+        if (priceData.lowPrice !== null) {
+          sheet.getRange(rowIndex, 8).setValue(priceData.lowPrice); // 最低價
+        }
+
+        // 更新時間戳
+        sheet.getRange(rowIndex, 9).setValue(
+          Utilities.formatDate(new Date(), "GMT+8", "yyyy-MM-dd HH:mm:ss")
+        );
+
+        // 確保公式存在
+        const sheetsService = new GoogleSheetsService();
+        sheetsService.ensureFormulas(sheet, rowIndex, stockCode.toString().trim());
+
+        // 重新整理試算表
+        sheetsService.refreshSheet(sheet);
+
+        // 計算耗時
+        const endTime = new Date();
+        const duration = Math.round((endTime - startTime) / 1000);
+
+        // 顯示成功訊息
+        ui.alert('更新成功', `股票 ${stockCode} 更新完成！\n耗時: ${duration} 秒`, ui.ButtonSet.OK);
+
+      } else {
+        ui.alert('更新失敗', `無法取得股票 ${stockCode} 的價格資料。\n請檢查股票代號是否正確，或查看應用程式記錄以取得詳細資訊。`, ui.ButtonSet.OK);
+      }
+
+    } catch (updateError) {
+      Logger.log(`更新單支股票 ${stockCode} 錯誤: ${updateError}`);
+      ui.alert('更新錯誤', `更新股票 ${stockCode} 時發生錯誤：${updateError.toString()}`, ui.ButtonSet.OK);
+    }
+
+  } catch (e) {
+    Logger.log('updateSingleStock 錯誤: ' + e);
+    SpreadsheetApp.getUi().alert('更新單支股票時發生錯誤：' + e.toString());
+  }
 }
 
 /**
