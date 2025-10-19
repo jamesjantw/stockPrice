@@ -75,19 +75,11 @@ class StockPriceService {
     if (cached !== null) return cached;
 
     try {
-      // 使用最近的交易日，因為今天可能還沒收盤
-      const today = new Date();
-      let targetDate = new Date(today);
+      Logger.log("開始取得 TWSE 資料: " + stockCode);
 
-      // 如果是週末，往前推到週五
-      if (today.getDay() === 0) { // 星期日
-        targetDate.setDate(today.getDate() - 2);
-      } else if (today.getDay() === 6) { // 星期六
-        targetDate.setDate(today.getDate() - 1);
-      }
-
-      const dateStr = Utilities.formatDate(targetDate, "GMT+8", "yyyyMMdd");
-      const url = `${this.twseBaseUrl}/exchangeReport/STOCK_DAY?response=json&date=${dateStr}&stockNo=${stockCode}`;
+      // 直接使用今天的日期，因為 TWSE 會自動回傳最新的交易日資料
+      const today = Utilities.formatDate(new Date(), "GMT+8", "yyyyMMdd");
+      const url = `${this.twseBaseUrl}/exchangeReport/STOCK_DAY?response=json&date=${today}&stockNo=${stockCode}`;
 
       Logger.log("TWSE URL: " + url);
 
@@ -107,22 +99,25 @@ class StockPriceService {
       }
 
       const jsonText = response.getContentText();
-      Logger.log("TWSE Raw Response: " + jsonText.substring(0, 200));
+      Logger.log("TWSE Raw Response length: " + jsonText.length);
+      Logger.log("TWSE Raw Response: " + jsonText.substring(0, 300));
 
       const json = JSON.parse(jsonText);
 
       if (json && json.data && json.data.length > 0) {
+        // TWSE 回傳的是當日或最近交易日的資料
         const lastRow = json.data[json.data.length - 1];
         Logger.log("TWSE Last Row: " + JSON.stringify(lastRow));
 
+        // TWSE 資料欄位：["日期", "成交股數", "成交金額", "開盤價", "最高價", "最低價", "收盤價", "漲跌價", "成交筆數"]
         const priceData = {
-          currentPrice: parseFloat(lastRow[6].replace(/,/g, "")), // 收盤價
-          previousClose: parseFloat(lastRow[7].replace(/,/g, "")), // 昨收價
-          openPrice: parseFloat(lastRow[5].replace(/,/g, "")), // 開盤價
-          highPrice: parseFloat(lastRow[8].replace(/,/g, "")), // 最高價
-          lowPrice: parseFloat(lastRow[9].replace(/,/g, "")), // 最低價
-          volume: parseInt(lastRow[1].replace(/,/g, "")), // 成交量
-          change: parseFloat(lastRow[7].replace(/,/g, "")) - parseFloat(lastRow[6].replace(/,/g, "")) // 漲跌價
+          currentPrice: parseFloat(lastRow[6].replace(/,/g, "")), // 收盤價 (index 6)
+          previousClose: parseFloat(lastRow[3].replace(/,/g, "")), // 開盤價作為昨收參考 (index 3)
+          openPrice: parseFloat(lastRow[3].replace(/,/g, "")), // 開盤價 (index 3)
+          highPrice: parseFloat(lastRow[4].replace(/,/g, "")), // 最高價 (index 4)
+          lowPrice: parseFloat(lastRow[5].replace(/,/g, "")), // 最低價 (index 5)
+          volume: parseInt(lastRow[1].replace(/,/g, "")), // 成交量 (index 1)
+          change: parseFloat(lastRow[7].replace(/,/g, "")) // 漲跌價 (index 7)
         };
 
         // 驗證資料完整性
@@ -271,15 +266,18 @@ class StockPriceService {
     if (cached !== null) return cached;
 
     try {
-      // 使用 Yahoo Finance 的 quote API，更穩定
-      const url = `${this.yahooBaseUrl}/v10/finance/quoteSummary/${stockCode}?modules=price`;
+      Logger.log("開始取得美股資料: " + stockCode);
 
-      Logger.log("Yahoo Finance URL: " + url);
+      // 使用 Yahoo Finance 的 v7 API，更穩定且支援更多資料
+      const url = `${this.yahooBaseUrl}/v7/finance/quote?symbols=${stockCode}`;
+
+      Logger.log("Yahoo URL: " + url);
 
       const response = UrlFetchApp.fetch(url, {
         muteHttpExceptions: true,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json'
         }
       });
 
@@ -292,21 +290,22 @@ class StockPriceService {
       }
 
       const jsonText = response.getContentText();
-      Logger.log("Yahoo Raw Response: " + jsonText.substring(0, 200));
+      Logger.log("Yahoo Raw Response length: " + jsonText.length);
+      Logger.log("Yahoo Raw Response: " + jsonText.substring(0, 300));
 
       const json = JSON.parse(jsonText);
 
-      if (json && json.quoteSummary && json.quoteSummary.result && json.quoteSummary.result[0]) {
-        const priceData = json.quoteSummary.result[0].price;
+      if (json && json.quoteResponse && json.quoteResponse.result && json.quoteResponse.result[0]) {
+        const quote = json.quoteResponse.result[0];
 
         const result = {
-          currentPrice: priceData.regularMarketPrice ? priceData.regularMarketPrice.raw : null,
-          previousClose: priceData.regularMarketPreviousClose ? priceData.regularMarketPreviousClose.raw : null,
-          openPrice: priceData.regularMarketOpen ? priceData.regularMarketOpen.raw : null,
-          highPrice: priceData.regularMarketDayHigh ? priceData.regularMarketDayHigh.raw : null,
-          lowPrice: priceData.regularMarketDayLow ? priceData.regularMarketDayLow.raw : null,
-          volume: priceData.regularMarketVolume ? priceData.regularMarketVolume.raw : null,
-          change: priceData.regularMarketChange ? priceData.regularMarketChange.raw : null
+          currentPrice: quote.regularMarketPrice || null,
+          previousClose: quote.regularMarketPreviousClose || null,
+          openPrice: quote.regularMarketOpen || null,
+          highPrice: quote.regularMarketDayHigh || null,
+          lowPrice: quote.regularMarketDayLow || null,
+          volume: quote.regularMarketVolume || null,
+          change: quote.regularMarketChange || null
         };
 
         // 驗證資料完整性
