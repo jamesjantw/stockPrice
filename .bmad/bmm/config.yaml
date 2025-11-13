@@ -1,0 +1,34 @@
+# BMAD BMM Project Configuration
+# Generated: 2025-01-XX
+# Project: stockPrice (股價追蹤工具)
+
+# Project Information
+project_name: "stockPrice"
+project_display_name: "股價追蹤工具 (Stock Price Tracker)"
+project_type: "web-app"  # web-app, saas, enterprise-app, prototype, mvp
+project_level: "greenfield"  # greenfield, brownfield
+
+# User Information
+user_name: "james"  # Update with actual user name
+user_skill_level: "intermediate"  # beginner, intermediate, advanced
+
+# Language Settings
+communication_language: "zh-TW"  # Language for agent communication
+document_output_language: "zh-TW"  # Language for generated documents
+
+# Output Configuration
+output_folder: "docs"
+dev_ephemeral_location: ".bmad/bmm/ephemeral"
+
+# Workflow Configuration
+workflow_type: "greenfield-fullstack"  # Based on project type
+workflow_status_file: "docs/bmm-workflow-status.yaml"
+
+# Project Status
+current_phase: "development"  # planning, design, development, testing, deployment
+project_status: "active"  # active, paused, completed
+
+# Metadata
+created_date: "2025-10-18"
+last_updated: "2025-01-XX"
+version: "2.0"

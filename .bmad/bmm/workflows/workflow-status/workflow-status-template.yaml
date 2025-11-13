@@ -1,0 +1,59 @@
+# BMAD BMM Workflow Status File
+# This file tracks the current state of the BMM workflow for this project
+# Generated: {date}
+# Project: {project_name}
+
+project:
+  name: "{project_name}"
+  type: "{project_type}"
+  level: "{project_level}"
+  status: "initialized"
+
+workflow:
+  type: "{workflow_type}"
+  current_phase: "planning"
+  initialized_date: "{date}"
+  last_updated: "{date}"
+
+phases:
+  planning:
+    status: "not_started"  # not_started, in_progress, completed
+    artifacts: []
+    notes: ""
+  
+  design:
+    status: "not_started"
+    artifacts: []
+    notes: ""
+  
+  development:
+    status: "not_started"
+    artifacts: []
+    notes: ""
+  
+  testing:
+    status: "not_started"
+    artifacts: []
+    notes: ""
+  
+  deployment:
+    status: "not_started"
+    artifacts: []
+    notes: ""
+
+artifacts:
+  # Track all created artifacts (PRD, Architecture, Stories, etc.)
+  - name: ""
+    type: ""  # prd, architecture, story, epic, etc.
+    location: ""
+    status: ""  # draft, approved, in_progress, completed
+    created_date: ""
+    updated_date: ""
+
+current_focus:
+  agent: ""  # Which agent is currently working
+  task: ""  # Current task
+  next_steps: []
+
+notes:
+  - "Workflow initialized"
